@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Fractal Hologram with Organic Transitions</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000000;
+            color: white;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { Water } from 'three/addons/objects/Water.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        // --- Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x000000, 5, 100);
+        const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const clock = new THREE.Clock();
+
+        // --- Post-Processing Setup ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            0.3,  // strength
+            0.2,  // radius
+            0.1   // threshold
+        );
+        composer.addPass(bloomPass);
+
+        const bokehPass = new BokehPass(scene, camera, {
+            focus: 0,
+            aperture: 0,
+            maxblur: 0.00,
+        });
+        composer.addPass(bokehPass);
+
+        const outputPass = new OutputPass();
+        composer.addPass(outputPass);
+
+        // --- Controls & Lighting ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = false;
+        camera.position.set(0, 8, 18);
+        controls.target.set(0, 5, 0);
+
+        const lightColor = 0x4F42B5;
+        const ambientLight = new THREE.AmbientLight(lightColor, 1);
+        scene.add(ambientLight);
+        const spotLight = new THREE.SpotLight(lightColor, 2.5, 40, Math.PI / 4, 0.5, 1);
+        spotLight.position.set(0, 20, 0);
+        scene.add(spotLight);
+        scene.add(spotLight.target);
+        const sun = new THREE.Vector3();
+        sun.copy(spotLight.position).normalize();
+
+        // --- Star Field ---
+        const STAR_COUNT = 1000;
+        const starGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(STAR_COUNT * 3);
+        const starOpacities = new Float32Array(STAR_COUNT);
+        const starFadeStates = new Float32Array(STAR_COUNT);
+        const starFadeTimers = new Float32Array(STAR_COUNT);
+        const FADE_DURATION = 3;
+        const MIN_FADE_INTERVAL = 10;
+        const MAX_FADE_INTERVAL = 20;
+
+        for (let i = 0; i < STAR_COUNT; i++) {
+            const i3 = i * 3;
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const radius = 100;
+            starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+            starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+            starPositions[i3 + 2] = radius * Math.cos(phi);
+            starOpacities[i] = 1.0;
+            starFadeStates[i] = 0;
+            starFadeTimers[i] = Math.random() * (MAX_FADE_INTERVAL - MIN_FADE_INTERVAL) + MIN_FADE_INTERVAL;
+        }
+
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
+        const starMaterial = new THREE.PointsMaterial({
+            size: 0.5,
+            color: 0xffffff,
+            transparent: true,
+            vertexColors: false,
+            map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png'),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        // --- Water Surface ---
+        const waterGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const water = new Water(
+            waterGeometry,
+            {
+                textureWidth: 1024,
+                textureHeight: 1024,
+                waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', function (texture) {
+                    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                }),
+                sunDirection: sun,
+                sunColor: lightColor,
+                waterColor: new THREE.Color(0x000000),
+                alpha: 0.5,
+                distortionScale: 0.6,
+                fog: scene.fog !== undefined
+            }
+        );
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -1;
+        scene.add(water);
+        water.material.uniforms['normalSampler'].value = water.material.uniforms['normalSampler'].value;
+        water.material.uniforms['distortionScale'].value = 0.6;
+        water.material.uniforms['waterColor'].value.set(0, 0, 0);
+
+        // --- Particle Group ---
+        const particleGroup = new THREE.Group();
+        scene.add(particleGroup);
+
+        // --- Particle System ---
+        const PARTICLE_COUNT = 75000;
+        const SCALE_FACTOR = 2;
+        const mainGeometry = new THREE.BufferGeometry();
+        const mainMaterial = new THREE.PointsMaterial({
+            size: 0.01,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.8,
+            depthWrite: false
+        });
+        const positions = new Float32Array(PARTICLE_COUNT * 3);
+        const colors = new Float32Array(PARTICLE_COUNT * 3);
+
+        // --- Transition State Variables ---
+        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
+        let startPositions = new Float32Array(PARTICLE_COUNT * 3);
+        let controlPoints = new Float32Array(PARTICLE_COUNT * 3);
+        let isTransitioning = false;
+        let transitionProgress = 0.0;
+        const TRANSITION_DURATION = 8.0; // in seconds
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const i3 = i * 3;
+            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
+            const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
+            positions[i3] = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
+            positions[i3 + 1] = (4 * Math.sin(theta) * Math.sin(phi) + 4) * SCALE_FACTOR;
+            positions[i3 + 2] = 4 * Math.cos(phi) * SCALE_FACTOR;
+        }
+        targetPositions.set(positions);
+        mainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        mainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const particles = new THREE.Points(mainGeometry, mainMaterial);
+        particleGroup.add(particles);
+
+        // --- Trail System ---
+        const trailGeometry = new THREE.BufferGeometry();
+        const trailMaterial = new THREE.PointsMaterial({
+            size: 0.01,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.4,
+            depthWrite: false
+        });
+        const trailPositions = new Float32Array(positions);
+        const trailColors = new Float32Array(colors);
+        trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+        const trailParticles = new THREE.Points(trailGeometry, trailMaterial);
+        particleGroup.add(trailParticles);
+
+        const originalOnBeforeRender = water.onBeforeRender.bind(water);
+        water.onBeforeRender = (renderer, scene, camera) => {
+            trailParticles.visible = false;
+            originalOnBeforeRender(renderer, scene, camera);
+            trailParticles.visible = true;
+        };
+
+        // --- Image-Based Shape Generation ---
+        const imageCache = {};
+        function generatePointsFromImage(count, imageUrl, onComplete) {
+            const loader = new THREE.TextureLoader();
+            if (imageCache[imageUrl]) {
+                processImageData(count, imageCache[imageUrl], onComplete);
+                return;
+            }
+            loader.load(imageUrl, (texture) => {
+                const image = texture.image;
+                imageCache[imageUrl] = image;
+                processImageData(count, image, onComplete);
+            }, undefined, (err) => {
+                console.error(`Could not load image: ${imageUrl}. Falling back to a sphere.`, err);
+                onComplete(generateSphere(count));
+            });
+        }
+
+        function processImageData(count, image, onComplete) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const validPoints = [];
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i] > 128) { // Sample from white areas
+                    const x = (i / 4) % canvas.width;
+                    const y = Math.floor((i / 4) / canvas.width);
+                    validPoints.push(new THREE.Vector2(x, y));
+                }
+            }
+            if (validPoints.length === 0) {
+                console.error("No valid points found in the image. Is it a black and white silhouette?");
+                onComplete(generateSphere(count));
+                return;
+            }
+            const boundingBox = new THREE.Box2().setFromPoints(validPoints);
+            const center = new THREE.Vector2();
+            boundingBox.getCenter(center);
+            const size = new THREE.Vector2();
+            boundingBox.getSize(size);
+            const finalPoints = [];
+            const finalColors = [];
+            const color = new THREE.Color();
+            const finalScale = 8 / Math.max(size.x, size.y) * SCALE_FACTOR;
+            for (let i = 0; i < count; i++) {
+                const p = validPoints[Math.floor(Math.random() * validPoints.length)];
+                if (p) {
+                    const x = (p.x - center.x) * finalScale;
+                    const y = (-(p.y - center.y) * finalScale) + 4 * SCALE_FACTOR;
+                    const z = (Math.random() - 0.5) * 0.5 * SCALE_FACTOR;
+                    finalPoints.push(x, y, z);
+                    const hue = (y / (8 * SCALE_FACTOR) + 0.5) % 1.0;
+                    color.setHSL(hue, 0.9, 0.6);
+                    finalColors.push(color.r, color.g, color.b);
+                }
+            }
+            mainGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+            onComplete(new Float32Array(finalPoints));
+        }
+
+        function generateSphere(count) {
+            const points = [];
+            const colorsArr = [];
+            const color = new THREE.Color();
+            for (let i = 0; i < count; i++) {
+                const phi = Math.acos(-1 + (2 * i) / count);
+                const theta = Math.sqrt(count * Math.PI) * phi;
+                const x = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
+                const y = (4 * Math.sin(theta) * Math.sin(phi)) * SCALE_FACTOR;
+                const z = 4 * Math.cos(phi) * SCALE_FACTOR;
+                points.push(x, y + 4 * SCALE_FACTOR, z);
+                const hue = (y / (8 * SCALE_FACTOR) + 0.5) % 1.0;
+                color.setHSL(hue, 0.9, 0.6);
+                colorsArr.push(color.r, color.g, color.b);
+            }
+            mainGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorsArr), 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorsArr), 3));
+            return new Float32Array(points);
+        }
+
+        // --- Animation & Update Logic ---
+        const silhouetteFiles = [
+            'horse.png',
+            'wild.png',
+            'face.png',
+            'leaf.png',
+            'test.png',
+            'test2.png',
+            'test3.png',
+            'test4.png',
+            'test5.png',
+            'test6.png',
+            'test7.png',
+            'test8.png',
+            'test9.png',
+            'test10.png',
+        ];
+        const shapeGenerators = [
+            { name: 'Sphere', generator: (count, cb) => cb(generateSphere(count)) }
+        ];
+        silhouetteFiles.forEach(file => {
+            const name = file.split('.')[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            shapeGenerators.unshift({ name: name, generator: (count, cb) => generatePointsFromImage(count, file, cb) });
+        });
+
+        let currentGeneratorIndex = 0;
+        function updateTarget() {
+            const generatorInfo = shapeGenerators[currentGeneratorIndex];
+            generatorInfo.generator(PARTICLE_COUNT, (newTargetPositions) => {
+                targetPositions = newTargetPositions;
+                startPositions.set(mainGeometry.attributes.position.array);
+
+                const center = new THREE.Vector3(0, 4 * SCALE_FACTOR, 1); // Approx center of shape
+
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const i3 = i * 3;
+
+                    const p0 = new THREE.Vector3(startPositions[i3], startPositions[i3 + 1], startPositions[i3 + 2]);
+                    const p2 = new THREE.Vector3(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
+
+                    const midpoint = new THREE.Vector3().addVectors(p0, p2).multiplyScalar(0.5);
+
+                    const explosionStrength = 4 + Math.random() * 8;
+                    const upwardStrength = 3 + Math.random() * 7;
+
+                    const offset = new THREE.Vector3().subVectors(midpoint, center).normalize().multiplyScalar(explosionStrength);
+                    offset.y += upwardStrength;
+
+                    const p1 = new THREE.Vector3().addVectors(midpoint, offset);
+
+                    controlPoints[i3] = p1.x;
+                    controlPoints[i3 + 1] = p1.y;
+                    controlPoints[i3 + 2] = p1.z;
+                }
+
+                transitionProgress = 0.0;
+                isTransitioning = true;
+            });
+            currentGeneratorIndex = (currentGeneratorIndex + 1) % shapeGenerators.length;
+        }
+
+        let countdown = 25;
+        setInterval(() => {
+            countdown--;
+            if (countdown <= 0) {
+                countdown = 25;
+                updateTarget();
+            }
+        }, 1000);
+
+        // --- Helper functions for transition ---
+        function getQuadraticBezierPoint(t, p0, p1, p2) {
+            const u = 1 - t;
+            const tt = t * t;
+            const uu = u * u;
+            const p = p0.clone().multiplyScalar(uu);
+            p.add(p1.clone().multiplyScalar(2 * u * t));
+            p.add(p2.clone().multiplyScalar(tt));
+            return p;
+        }
+
+        function easeOutCubic(t) {
+            return (--t) * t * t + 1;
+        }
+
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+
+            controls.update();
+            particleGroup.rotation.y += 0.003;
+            water.material.uniforms['time'].value += deltaTime / 10.0;
+
+            // Update star fade and position
+            for (let i = 0; i < STAR_COUNT; i++) {
+                const i3 = i * 3;
+                starFadeTimers[i] -= deltaTime;
+                if (starFadeStates[i] === 0) { // Stable
+                    if (starFadeTimers[i] <= 0) {
+                        starFadeStates[i] = 1; // Start fading out
+                        starFadeTimers[i] = FADE_DURATION;
+                    }
+                } else if (starFadeStates[i] === 1) { // Fading out
+                    starOpacities[i] = Math.max(0, starOpacities[i] - deltaTime / FADE_DURATION);
+                    if (starOpacities[i] <= 0) {
+                        const theta = Math.random() * 2 * Math.PI;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        const radius = 100;
+                        starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+                        starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                        starPositions[i3 + 2] = radius * Math.cos(phi);
+                        starFadeStates[i] = 2; // Start fading in
+                        starFadeTimers[i] = FADE_DURATION;
+                    }
+                } else if (starFadeStates[i] === 2) { // Fading in
+                    starOpacities[i] = Math.min(1, starOpacities[i] + deltaTime / FADE_DURATION);
+                    if (starOpacities[i] >= 1) {
+                        starFadeStates[i] = 0; // Back to stable
+                        starFadeTimers[i] = Math.random() * (MAX_FADE_INTERVAL - MIN_FADE_INTERVAL) + MIN_FADE_INTERVAL;
+                    }
+                }
+            }
+            starGeometry.attributes.position.needsUpdate = true;
+            starGeometry.attributes.opacity.needsUpdate = true;
+
+            // --- Particle Transition Animation ---
+            const mainPositions = mainGeometry.attributes.position.array;
+            if (isTransitioning) {
+                transitionProgress += deltaTime / TRANSITION_DURATION;
+                const easedProgress = easeOutCubic(Math.min(transitionProgress, 1.0));
+
+                const p0 = new THREE.Vector3();
+                const p1 = new THREE.Vector3();
+                const p2 = new THREE.Vector3();
+
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const i3 = i * 3;
+
+                    p0.set(startPositions[i3], startPositions[i3 + 1], startPositions[i3 + 2]);
+                    p1.set(controlPoints[i3], controlPoints[i3 + 1], controlPoints[i3 + 2]);
+                    p2.set(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
+
+                    const currentPos = getQuadraticBezierPoint(easedProgress, p0, p1, p2);
+
+                    mainPositions[i3] = currentPos.x;
+                    mainPositions[i3 + 1] = currentPos.y;
+                    mainPositions[i3 + 2] = currentPos.z;
+                }
+
+                if (transitionProgress >= 1.0) {
+                    isTransitioning = false;
+                    mainPositions.set(targetPositions); // Snap to final position
+                }
+            }
+
+            // --- Trail Update ---
+            const trailPositions = trailGeometry.attributes.position.array;
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                const trailPos = new THREE.Vector3(trailPositions[i3], trailPositions[i3 + 1], trailPositions[i3 + 2]);
+                const mainPos = new THREE.Vector3(mainPositions[i3], mainPositions[i3 + 1], mainPositions[i3 + 2]);
+                trailPos.lerp(mainPos, 0.2);
+                trailPositions[i3] = trailPos.x;
+                trailPositions[i3 + 1] = trailPos.y;
+                trailPositions[i3 + 2] = trailPos.z;
+            }
+            mainGeometry.attributes.position.needsUpdate = true;
+            trailGeometry.attributes.position.needsUpdate = true;
+
+            composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateTarget();
+        animate();
+    </script>
+</body>
+</html>
