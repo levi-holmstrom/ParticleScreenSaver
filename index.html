@@ -28,8 +28,7 @@
             }
         }
     </script>
-    <script type="module">
-        import * as THREE from 'three';
+    <script type="module">import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { Water } from 'three/addons/objects/Water.js';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -40,35 +39,41 @@
 
         // --- Scene Setup ---
         const scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0x000000, 5, 100);
+        scene.fog = new THREE.Fog(0x000000, 5, 30);
         const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
-
         const clock = new THREE.Clock();
+
+        // --- Transition State Variables ---
+        const PARTICLE_COUNT = 75000;
+        const SCALE_FACTOR = 2;
+        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
+        let startPositions = new Float32Array(PARTICLE_COUNT * 3);
+        let controlPoints = new Float32Array(PARTICLE_COUNT * 3);
+        let isTransitioning = false;
+        let transitionProgress = 0.0;
+        const TRANSITION_DURATION = 8.0; // in seconds
 
         // --- Post-Processing Setup ---
         const composer = new EffectComposer(renderer);
         const renderPass = new RenderPass(scene, camera);
         composer.addPass(renderPass);
-
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.3,  // strength
-            0.2,  // radius
-            0.1   // threshold
+            0.3, // strength
+            0.2, // radius
+            0.1 // threshold
         );
         composer.addPass(bloomPass);
-
         const bokehPass = new BokehPass(scene, camera, {
             focus: 0,
             aperture: 0,
             maxblur: 0.00,
         });
         composer.addPass(bokehPass);
-
         const outputPass = new OutputPass();
         composer.addPass(outputPass);
 
@@ -77,9 +82,8 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.autoRotate = false;
-        camera.position.set(0, 8, 18);
+        camera.position.set(0, 8, 21);
         controls.target.set(0, 5, 0);
-
         const lightColor = 0x4F42B5;
         const ambientLight = new THREE.AmbientLight(lightColor, 1);
         scene.add(ambientLight);
@@ -100,7 +104,6 @@
         const FADE_DURATION = 3;
         const MIN_FADE_INTERVAL = 10;
         const MAX_FADE_INTERVAL = 20;
-
         for (let i = 0; i < STAR_COUNT; i++) {
             const i3 = i * 3;
             const theta = Math.random() * 2 * Math.PI;
@@ -113,7 +116,6 @@
             starFadeStates[i] = 0;
             starFadeTimers[i] = Math.random() * (MAX_FADE_INTERVAL - MIN_FADE_INTERVAL) + MIN_FADE_INTERVAL;
         }
-
         starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
         starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
         const starMaterial = new THREE.PointsMaterial({
@@ -130,56 +132,62 @@
 
         // --- Water Surface ---
         const waterGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const waterNormals = new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', function (texture) {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 4);
+            const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.anisotropy = Math.min(16, maxAnisotropy);
+        });
         const water = new Water(
             waterGeometry,
             {
-                textureWidth: 1024,
-                textureHeight: 1024,
-                waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', function (texture) {
-                    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-                }),
+                textureWidth: 2048,
+                textureHeight: 2048,
+                waterNormals: waterNormals,
                 sunDirection: sun,
                 sunColor: lightColor,
                 waterColor: new THREE.Color(0x000000),
                 alpha: 0.5,
-                distortionScale: 0.6,
+                distortionScale: 0.3,
                 fog: scene.fog !== undefined
             }
         );
         water.rotation.x = -Math.PI / 2;
-        water.position.y = -1;
+        water.position.y = -0.3;
         scene.add(water);
-        water.material.uniforms['normalSampler'].value = water.material.uniforms['normalSampler'].value;
-        water.material.uniforms['distortionScale'].value = 0.6;
+        water.material.uniforms['normalSampler'].value = waterNormals;
+        water.material.uniforms['distortionScale'].value = 0.3;
         water.material.uniforms['waterColor'].value.set(0, 0, 0);
+        water.material.uniforms['edgeFade'] = { value: 0.1 };
+        water.material.onBeforeCompile = (shader) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <normalmap_pars_fragment>',
+                `
+                #include <normalmap_pars_fragment>
+                uniform float edgeFade;
+                `
+            );
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <normal_fragment_maps>',
+                `
+                #include <normal_fragment_maps>
+                vec2 uv = vUv;
+                float edgeFactor = smoothstep(0.0, edgeFade, uv.x) * smoothstep(0.0, edgeFade, 1.0 - uv.x) *
+                                   smoothstep(0.0, edgeFade, uv.y) * smoothstep(0.0, edgeFade, 1.0 - uv.y);
+                normal = mix(vec3(0.0, 0.0, 1.0), normal, edgeFactor);
+                `
+            );
+        };
 
         // --- Particle Group ---
         const particleGroup = new THREE.Group();
         scene.add(particleGroup);
 
         // --- Particle System ---
-        const PARTICLE_COUNT = 75000;
-        const SCALE_FACTOR = 2;
         const mainGeometry = new THREE.BufferGeometry();
-        const mainMaterial = new THREE.PointsMaterial({
-            size: 0.01,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            opacity: 0.8,
-            depthWrite: false
-        });
         const positions = new Float32Array(PARTICLE_COUNT * 3);
         const colors = new Float32Array(PARTICLE_COUNT * 3);
-
-        // --- Transition State Variables ---
-        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
-        let startPositions = new Float32Array(PARTICLE_COUNT * 3);
-        let controlPoints = new Float32Array(PARTICLE_COUNT * 3);
-        let isTransitioning = false;
-        let transitionProgress = 0.0;
-        const TRANSITION_DURATION = 8.0; // in seconds
-
+        const yPositions = new Float32Array(PARTICLE_COUNT);
         for (let i = 0; i < PARTICLE_COUNT; i++) {
             const i3 = i * 3;
             const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
@@ -187,30 +195,90 @@
             positions[i3] = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
             positions[i3 + 1] = (4 * Math.sin(theta) * Math.sin(phi) + 4) * SCALE_FACTOR;
             positions[i3 + 2] = 4 * Math.cos(phi) * SCALE_FACTOR;
+            yPositions[i] = positions[i3 + 1];
         }
-        targetPositions.set(positions);
         mainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         mainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(yPositions, 1));
+        const mainMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                pointSize: { value: 0.01 },
+                waterLevel: { value: -0.3 },
+                maxDepth: { value: 8 * SCALE_FACTOR }
+            },
+            vertexShader: `
+                attribute vec3 color;
+                attribute float yPosition;
+                varying vec3 vColor;
+                varying float vBrightness;
+                uniform float pointSize;
+                uniform float waterLevel;
+                uniform float maxDepth;
+                void main() {
+                    vColor = color;
+                    float depth = max(0.0, waterLevel - yPosition);
+                    vBrightness = 1.0 - smoothstep(0.0, maxDepth, depth);
+                    gl_PointSize = pointSize * 1000.0 / length(position - cameraPosition);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vBrightness;
+                void main() {
+                    gl_FragColor = vec4(vColor * vBrightness, vBrightness * 0.8);
+                }
+            `,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
         const particles = new THREE.Points(mainGeometry, mainMaterial);
         particleGroup.add(particles);
 
         // --- Trail System ---
         const trailGeometry = new THREE.BufferGeometry();
-        const trailMaterial = new THREE.PointsMaterial({
-            size: 0.01,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            opacity: 0.4,
-            depthWrite: false
-        });
         const trailPositions = new Float32Array(positions);
         const trailColors = new Float32Array(colors);
+        const trailYPositions = new Float32Array(yPositions);
         trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
         trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
+        trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(trailYPositions, 1));
+        const trailMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                pointSize: { value: 0.01 },
+                waterLevel: { value: -0.3 },
+                maxDepth: { value: 8 * SCALE_FACTOR }
+            },
+            vertexShader: `
+                attribute vec3 color;
+                attribute float yPosition;
+                varying vec3 vColor;
+                varying float vBrightness;
+                uniform float pointSize;
+                uniform float waterLevel;
+                uniform float maxDepth;
+                void main() {
+                    vColor = color;
+                    float depth = max(0.0, waterLevel - yPosition);
+                    vBrightness = 1.0 - smoothstep(0.0, maxDepth, depth);
+                    gl_PointSize = pointSize * 1000.0 / length(position - cameraPosition);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vBrightness;
+                void main() {
+                    gl_FragColor = vec4(vColor * vBrightness, vBrightness * 0.4);
+                }
+            `,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
         const trailParticles = new THREE.Points(trailGeometry, trailMaterial);
         particleGroup.add(trailParticles);
-
         const originalOnBeforeRender = water.onBeforeRender.bind(water);
         water.onBeforeRender = (renderer, scene, camera) => {
             trailParticles.visible = false;
@@ -235,7 +303,6 @@
                 onComplete(generateSphere(count));
             });
         }
-
         function processImageData(count, image, onComplete) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
@@ -246,7 +313,7 @@
             const data = imageData.data;
             const validPoints = [];
             for (let i = 0; i < data.length; i += 4) {
-                if (data[i] > 128) { // Sample from white areas
+                if (data[i] > 128) {
                     const x = (i / 4) % canvas.width;
                     const y = Math.floor((i / 4) / canvas.width);
                     validPoints.push(new THREE.Vector2(x, y));
@@ -264,6 +331,7 @@
             boundingBox.getSize(size);
             const finalPoints = [];
             const finalColors = [];
+            const finalYPositions = [];
             const color = new THREE.Color();
             const finalScale = 8 / Math.max(size.x, size.y) * SCALE_FACTOR;
             for (let i = 0; i < count; i++) {
@@ -273,19 +341,22 @@
                     const y = (-(p.y - center.y) * finalScale) + 4 * SCALE_FACTOR;
                     const z = (Math.random() - 0.5) * 0.5 * SCALE_FACTOR;
                     finalPoints.push(x, y, z);
+                    finalYPositions.push(y);
                     const hue = (y / (8 * SCALE_FACTOR) + 0.5) % 1.0;
                     color.setHSL(hue, 0.9, 0.6);
                     finalColors.push(color.r, color.g, color.b);
                 }
             }
             mainGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+            mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(finalYPositions), 1));
             trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+            trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(finalYPositions), 1));
             onComplete(new Float32Array(finalPoints));
         }
-
         function generateSphere(count) {
             const points = [];
             const colorsArr = [];
+            const yPositionsArr = [];
             const color = new THREE.Color();
             for (let i = 0; i < count; i++) {
                 const phi = Math.acos(-1 + (2 * i) / count);
@@ -294,12 +365,15 @@
                 const y = (4 * Math.sin(theta) * Math.sin(phi)) * SCALE_FACTOR;
                 const z = 4 * Math.cos(phi) * SCALE_FACTOR;
                 points.push(x, y + 4 * SCALE_FACTOR, z);
+                yPositionsArr.push(y + 4 * SCALE_FACTOR);
                 const hue = (y / (8 * SCALE_FACTOR) + 0.5) % 1.0;
                 color.setHSL(hue, 0.9, 0.6);
                 colorsArr.push(color.r, color.g, color.b);
             }
             mainGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorsArr), 3));
+            mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(yPositionsArr), 1));
             trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorsArr), 3));
+            trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(yPositionsArr), 1));
             return new Float32Array(points);
         }
 
@@ -327,43 +401,36 @@
             const name = file.split('.')[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             shapeGenerators.unshift({ name: name, generator: (count, cb) => generatePointsFromImage(count, file, cb) });
         });
-
         let currentGeneratorIndex = 0;
         function updateTarget() {
             const generatorInfo = shapeGenerators[currentGeneratorIndex];
             generatorInfo.generator(PARTICLE_COUNT, (newTargetPositions) => {
                 targetPositions = newTargetPositions;
                 startPositions.set(mainGeometry.attributes.position.array);
-
-                const center = new THREE.Vector3(0, 4 * SCALE_FACTOR, 1); // Approx center of shape
-
+                const center = new THREE.Vector3(0, 4 * SCALE_FACTOR, 1);
+                const yPositionsArr = new Float32Array(PARTICLE_COUNT);
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const i3 = i * 3;
-
                     const p0 = new THREE.Vector3(startPositions[i3], startPositions[i3 + 1], startPositions[i3 + 2]);
                     const p2 = new THREE.Vector3(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
-
                     const midpoint = new THREE.Vector3().addVectors(p0, p2).multiplyScalar(0.5);
-
                     const explosionStrength = 4 + Math.random() * 8;
                     const upwardStrength = 3 + Math.random() * 7;
-
                     const offset = new THREE.Vector3().subVectors(midpoint, center).normalize().multiplyScalar(explosionStrength);
                     offset.y += upwardStrength;
-
                     const p1 = new THREE.Vector3().addVectors(midpoint, offset);
-
                     controlPoints[i3] = p1.x;
                     controlPoints[i3 + 1] = p1.y;
                     controlPoints[i3 + 2] = p1.z;
+                    yPositionsArr[i] = targetPositions[i3 + 1];
                 }
-
+                mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(yPositionsArr, 1));
+                trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(yPositionsArr, 1));
                 transitionProgress = 0.0;
                 isTransitioning = true;
             });
             currentGeneratorIndex = (currentGeneratorIndex + 1) % shapeGenerators.length;
         }
-
         let countdown = 25;
         setInterval(() => {
             countdown--;
@@ -383,16 +450,12 @@
             p.add(p2.clone().multiplyScalar(tt));
             return p;
         }
-
         function easeOutCubic(t) {
             return (--t) * t * t + 1;
         }
-
-
         function animate() {
             requestAnimationFrame(animate);
             const deltaTime = clock.getDelta();
-
             controls.update();
             particleGroup.rotation.y += 0.003;
             water.material.uniforms['time'].value += deltaTime / 10.0;
@@ -401,12 +464,12 @@
             for (let i = 0; i < STAR_COUNT; i++) {
                 const i3 = i * 3;
                 starFadeTimers[i] -= deltaTime;
-                if (starFadeStates[i] === 0) { // Stable
+                if (starFadeStates[i] === 0) {
                     if (starFadeTimers[i] <= 0) {
-                        starFadeStates[i] = 1; // Start fading out
+                        starFadeStates[i] = 1;
                         starFadeTimers[i] = FADE_DURATION;
                     }
-                } else if (starFadeStates[i] === 1) { // Fading out
+                } else if (starFadeStates[i] === 1) {
                     starOpacities[i] = Math.max(0, starOpacities[i] - deltaTime / FADE_DURATION);
                     if (starOpacities[i] <= 0) {
                         const theta = Math.random() * 2 * Math.PI;
@@ -415,13 +478,13 @@
                         starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
                         starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
                         starPositions[i3 + 2] = radius * Math.cos(phi);
-                        starFadeStates[i] = 2; // Start fading in
+                        starFadeStates[i] = 2;
                         starFadeTimers[i] = FADE_DURATION;
                     }
-                } else if (starFadeStates[i] === 2) { // Fading in
+                } else if (starFadeStates[i] === 2) {
                     starOpacities[i] = Math.min(1, starOpacities[i] + deltaTime / FADE_DURATION);
                     if (starOpacities[i] >= 1) {
-                        starFadeStates[i] = 0; // Back to stable
+                        starFadeStates[i] = 0;
                         starFadeTimers[i] = Math.random() * (MAX_FADE_INTERVAL - MIN_FADE_INTERVAL) + MIN_FADE_INTERVAL;
                     }
                 }
@@ -431,36 +494,35 @@
 
             // --- Particle Transition Animation ---
             const mainPositions = mainGeometry.attributes.position.array;
+            const yPositions = mainGeometry.attributes.yPosition.array;
             if (isTransitioning) {
                 transitionProgress += deltaTime / TRANSITION_DURATION;
                 const easedProgress = easeOutCubic(Math.min(transitionProgress, 1.0));
-
                 const p0 = new THREE.Vector3();
                 const p1 = new THREE.Vector3();
                 const p2 = new THREE.Vector3();
-
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const i3 = i * 3;
-
                     p0.set(startPositions[i3], startPositions[i3 + 1], startPositions[i3 + 2]);
                     p1.set(controlPoints[i3], controlPoints[i3 + 1], controlPoints[i3 + 2]);
                     p2.set(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
-
                     const currentPos = getQuadraticBezierPoint(easedProgress, p0, p1, p2);
-
                     mainPositions[i3] = currentPos.x;
                     mainPositions[i3 + 1] = currentPos.y;
                     mainPositions[i3 + 2] = currentPos.z;
+                    yPositions[i] = currentPos.y;
                 }
-
+                mainGeometry.attributes.yPosition.needsUpdate = true;
+                trailGeometry.attributes.yPosition.needsUpdate = true;
                 if (transitionProgress >= 1.0) {
                     isTransitioning = false;
-                    mainPositions.set(targetPositions); // Snap to final position
+                    mainPositions.set(targetPositions);
                 }
             }
 
             // --- Trail Update ---
             const trailPositions = trailGeometry.attributes.position.array;
+            const trailYPositions = trailGeometry.attributes.yPosition.array;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const i3 = i * 3;
                 const trailPos = new THREE.Vector3(trailPositions[i3], trailPositions[i3 + 1], trailPositions[i3 + 2]);
@@ -469,10 +531,11 @@
                 trailPositions[i3] = trailPos.x;
                 trailPositions[i3 + 1] = trailPos.y;
                 trailPositions[i3 + 2] = trailPos.z;
+                trailYPositions[i] = trailPos.y;
             }
             mainGeometry.attributes.position.needsUpdate = true;
             trailGeometry.attributes.position.needsUpdate = true;
-
+            trailGeometry.attributes.yPosition.needsUpdate = true;
             composer.render();
         }
 
@@ -483,8 +546,17 @@
             composer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        // Initialize target positions
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const i3 = i * 3;
+            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
+            const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
+            targetPositions[i3] = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
+            targetPositions[i3 + 1] = (4 * Math.sin(theta) * Math.sin(phi) + 4) * SCALE_FACTOR;
+            targetPositions[i3 + 2] = 4 * Math.cos(phi) * SCALE_FACTOR;
+        }
+
         updateTarget();
-        animate();
-    </script>
+        animate();</script>
 </body>
 </html>
