@@ -1,161 +1,159 @@
 <!-- Use # for H1 (main title), renders as largest header -->
 # ParticleScreenSaver
-
 <!-- Image syntax: ![Alt text](URL) for displaying images -->
 ![Sample Output](https://github.com/user-attachments/assets/5992fc0b-f9ea-4bdc-a767-7321991f66df)
-
 <!-- Paragraphs: Plain text with blank lines between them. Use * for italic, ** for bold -->
-An *artistic particle screen saver* designed for **OLED/WLED displays**, featuring **procedural fractal holograms** with smooth organic transitions. Built with [Three.js](https://threejs.org/), this project creates a visually stunning particle system that transitions between shapes, including custom user-provided images.
-
 <!-- Use ## for H2 (section headers), renders as second-largest header -->
 ## Features
-
 <!-- Unordered list: Use - or * followed by a space -->
-- **Dynamic Particle Transitions**: Particles move seamlessly between shapes using quadratic Bezier curves for organic animations.
-- **Custom Image Support**: Replace default shapes with your own black-and-white silhouette images.
-- **Post-Processing Effects**: Utilizes UnrealBloom and Bokeh passes for a glowing, holographic effect.
-- **Water Surface**: A reflective water plane enhances scene depth.
-- **Star Field Background**: A twinkling cosmic backdrop adds immersion.
-- **Responsive Design**: Adapts to various screen sizes with smooth rendering.
-
+- **Hologram Transitions**: Particles transition between generated shapes using smooth animations.
+- **Custom Image Support**: Upload color PNG or JPEG images to create custom hologram effects, with particles mapping to image colors.
+- **Post-Processing Effects**: Utilizes UnrealBloomPass for glowing, holographic visuals.
+- **Water Surface**: A reflective water plane with customizable distortion and speed enhances scene depth.
+- **Responsive UI**: A dynamic control panel adapts to various screen sizes, including mobile devices.
+- **Interactive Settings**: Real-time adjustments for particle count, bloom effects, water properties, and more via an intuitive interface.
 ## Requirements
-
 <!-- Paragraph followed by unordered list for requirements -->
-To modify this project, ensure you have:
-
+To run or modify this project, ensure you have:
 - A modern web browser (*e.g.*, Chrome, Firefox, Edge) with WebGL support.
 - A local web server (*e.g.*, `http-server`, Live Server in VS Code) to serve `index.html` due to CORS restrictions with Three.js texture loading.
-- An image editing tool (*e.g.*, Photoshop, GIMP) for creating/editing black-and-white silhouette images.
-
+- An image editing tool (*e.g.*, Photoshop, GIMP) for creating/editing custom images (optional).
 ## Customizing the Particle Screen Saver
-
 <!-- Paragraph introducing customization -->
-You can customize the screen saver by editing `index.html` to add your own images or adjust settings. Below are instructions for modifying images and a list of available settings.
-
+Customize the screen saver by interacting with the settings panel in the browser or editing `index.html` for advanced modifications. Below are instructions for adding custom images and adjusting settings.
 <!-- Use ### for H3 (subsection headers) -->
 ### Adding Custom Images
-
 <!-- Paragraph explaining image replacement -->
-Replace default shapes (*e.g.*, Pokémon silhouettes) with your own images by editing `index.html`.
-
+You can upload your own color PNG or JPEG images to create unique hologram effects, replacing or supplementing the default procedural shapes.
 #### Image Requirements
-
 <!-- Unordered list for image specs -->
-- **Format**: PNG with a transparent or solid background.
+- **Format**: PNG or JPEG with color or transparency.
 - **Resolution**: Recommended `1024x1024` pixels for optimal performance and quality.
-- **Style**: Black-and-white silhouette where white areas (RGB > 128) define the shape. Black areas are ignored.
+- **Style**: Images with distinct color areas work best, as particles map to RGB values. Transparent areas (alpha < 128) are ignored.
 - **Example**:
-
-
-  ![Example Silhouette](https://github.com/user-attachments/assets/94d362f1-7e98-44de-bdbe-a2913c6f3fb4)
+<img width="345" height="382" alt="default_07" src="https://github.com/user-attachments/assets/f1a1addf-c71f-43cf-85ae-10adf1fae002" />
 
 #### Steps to Add Custom Images
-
 <!-- Ordered list: Use 1., 2., etc. for numbered steps -->
 1. **Prepare Your Image**:
-   - Create or edit a black-and-white silhouette using an image editing tool.
-   - Ensure the image is a PNG with white areas for the shape and black/transparent areas for the background.
-   - Save the image in the project directory or host it online (*e.g.*, GitHub, Imgur).
-
-2. **Edit `index.html`**:
-   - Open `index.html` in a text editor.
-   - Locate the `silhouetteFiles` array (search for `const silhouetteFiles = [];`).
-   - Add or replace with your image file path/URL. For example:
-     <!-- Code block: Use triple backticks with language (javascript) for syntax highlighting -->
-     ```javascript
-     const silhouetteFiles = [
-         'path/to/your/custom_image.png'
-     ];
-     ```
-   - For local images, place them in the project directory and ensure they are served by the local web server.
-   - For online images, use the full URL (*e.g.*, `https://example.com/custom_image.png`).
-
-3. **Test Your Changes**:
-   - Save `index.html` and refresh the browser (ensure the local server is running).
-   - The particle system will transition to your custom shape every 25 seconds.
-
+   - Create or edit an image using an image editing tool.
+   - Save as PNG or JPEG in the project directory or host online (*e.g.*, GitHub, Imgur).
+2. **Upload via Settings Panel**:
+   - Open the screen saver in a browser.
+   - Click the **SETTINGS** button (bottom-right, pulsing on first load).
+   - In the **Hologram Image Sets** section, click **Load Custom Set**.
+   - Select one or more PNG/JPEG files.
+   - The system caches the images and transitions to them every 15 seconds.
+3. **Verify Upload**:
+   - Check the **Current Set** text in the panel to confirm your images loaded (e.g., `Current Set: Custom (3 images)`).
+   - Particles will form shapes based on the image's colored areas.
 #### Notes
-
 <!-- Unordered list for additional notes -->
-- The particle system uses white areas (RGB > 128) to generate points. Ensure your image has clear, distinct white shapes.
-- If the image fails to load or lacks valid white areas, it falls back to a default sphere shape.
-- For best results, use high-contrast images with minimal noise.
-
+- Images with clear, high-contrast colors produce the best results.
+- If an image fails to load or lacks valid colored areas, the system falls back to a default procedural sphere.
+- Use a local web server for local images to avoid CORS issues.
 ### Available Settings
-
 <!-- Paragraph introducing settings -->
-You can adjust the following settings in `index.html` to customize the screen saver's behavior and appearance. Search for these variables in the JavaScript code to modify them:
-
+Adjust settings via the browser's settings panel or by editing `index.html`. The panel offers sliders, checkboxes, and dropdowns for real-time control. Below are key settings and their JavaScript equivalents for advanced users.
 <!-- Unordered list for settings with inline code (`) and code blocks -->
-- **`PARTICLE_COUNT`** (default: `75000`):
-  - Controls the number of particles in the system.
-  - Lower values (e.g., `50000`) improve performance on lower-end devices but reduce visual density.
+- **`particleCount`** (default: `50000`):
+  - Controls the number of particles.
+  - Lower values (e.g., `30000`) improve performance; higher values (e.g., `100000`) increase detail.
+  - UI: Adjust via **Particle Count** slider.
   - Example:
     ```javascript
-    const PARTICLE_COUNT = 50000;
+    settings.particleCount = 30000;
     ```
-
-- **`SCALE_FACTOR`** (default: `2`):
-  - Scales the size of the particle shapes.
-  - Increase for larger shapes (e.g., `3`), decrease for smaller shapes (e.g., `1.5`).
+- **`scaleFactor`** (default: `2`):
+  - Scales the size of hologram shapes.
+  - UI: Not directly exposed; edit in code.
   - Example:
     ```javascript
-    const SCALE_FACTOR = 3;
+    settings.scaleFactor = 3;
     ```
-
-- **`TRANSITION_DURATION`** (default: `8.0`):
-  - Duration (in seconds) for particle transitions between shapes.
-  - Increase for slower transitions (e.g., `12.0`), decrease for faster transitions (e.g., `5.0`).
+- **`transitionDuration`** (default: `25.0`):
+  - Duration (in seconds) for transitions between shapes.
+  - UI: Adjust via **Transition Time** slider.
   - Example:
     ```javascript
-    const TRANSITION_DURATION = 10.0;
+    settings.transitionDuration = 15.0;
     ```
-
-- **`STAR_COUNT`** (default: `1000`):
-  - Number of stars in the background star field.
-  - Reduce for better performance (e.g., `500`), increase for a denser star field (e.g., `2000`).
+- **`bloom.strength`** (default: `0.1`):
+  - Intensity of the glow effect.
+  - UI: Adjust via **Glow Strength** slider.
   - Example:
     ```javascript
-    const STAR_COUNT = 1500;
+    settings.bloom.strength = 0.3;
     ```
-
-- **Bloom Pass Settings**:
-  - Located in the `UnrealBloomPass` constructor: `UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.2, 0.1, 0.2)`.
-  - Adjust parameters for bloom effect intensity:
-    - `strength` (default: `0.2`): Increase (e.g., `0.5`) for stronger glow, decrease (e.g., `0.1`) for subtler glow.
-    - `radius` (default: `0.1`): Increase (e.g., `0.3`) for broader glow spread.
-    - `threshold` (default: `0.2`): Increase (e.g., `0.4`) to limit glow to brighter areas.
-    - Example:
-      ```javascript
-      UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.2, 0.3);
-      ```
-
-- **Water Surface Settings**:
-  - Located in the `Water` constructor and `water.material.uniforms`.
-  - Adjust `distortionScale` (default: `0.3`) for water ripple intensity (e.g., `0.5` for stronger ripples).
-  - Modify `waterColor` (default: `0x000000`) to change water tint (e.g., `0x1a2b3c` for a bluish hue).
+- **`bloom.radius`** (default: `0.05`):
+  - Spread of the glow effect.
+  - UI: Adjust via **Glow Radius** slider.
   - Example:
     ```javascript
-    water.material.uniforms['distortionScale'].value = 0.5;
+    settings.bloom.radius = 0.2;
     ```
+- **`water.distortion`** (default: `0.3`):
+  - Intensity of water ripples.
+  - UI: Adjust via **Water Distort** slider.
+  - Example:
+    ```javascript
+    settings.water.distortion = 0.5;
+    ```
+- **`water.speed`** (default: `0.25`):
+  - Speed of water animation.
+  - UI: Adjust via **Water Speed** slider.
+  - Example:
+    ```javascript
+    settings.water.speed = 0.4;
+    ```
+- **`lightColor`** (default: `#4F42B5`):
+  - Color of ambient and spot lighting.
+  - UI: Adjust via **Light Color** picker.
+  - Example:
+    ```javascript
+    settings.lightColor = '#ff5733';
+    ```
+- **Presets**:
+  - Predefined configurations: **Emergent**, **Skyfall**, **Mindful**.
+  - UI: Click preset buttons in the **Presets** section to apply.
+<!-- Paragraph introducing code-based settings -->
+#### Editing Settings in Code
+To modify default settings, edit the `setDefaultSettings` function in `index.html`:
+    ```javascript
+    function setDefaultSettings() {
+        settings = {
+            particleCount: 30000,
+            scaleFactor: 2.5,
+            transitionDuration: 20.0,
+            // ... other settings
+        };
+        pendingSettings = JSON.parse(JSON.stringify(settings));
+    }
+    ```
+### Using the Settings Panel
+<!-- Unordered list for settings panel instructions -->
+- **Open**: Click the **SETTINGS** button (bottom-right, pulses on page load).
+- **Adjust**: Use sliders, checkboxes, or dropdowns for real-time changes (e.g., **Camera FOV**, **Fog Near/Far**).
+- **Apply**: For settings like **Particle Count** or **Water Quality**, click **Apply & Reboot Scene** to rebuild the scene.
+- **Presets**: Click **Emergent**, **Skyfall**, or **Mindful** for preconfigured effects.
+- **Close**: Click the **×** button to hide the panel.
+
+<img width="1127" height="769" alt="Settings" src="https://github.com/user-attachments/assets/86d6143c-ac7d-42f3-a0a3-64997e861591" />
 
 ## Troubleshooting
-
 <!-- Unordered list for troubleshooting tips -->
-- **CORS Errors**: Use a local web server to serve `index.html`, as opening it directly in the browser may cause texture loading issues.
-- **Image Not Displaying**: Verify the image is a valid PNG with white silhouette areas (RGB > 128). Check the browser console for errors.
-- **Performance Issues**: Reduce `PARTICLE_COUNT` (e.g., to `50000`) for lower-end devices.
-
+- **CORS Errors**: Serve `index.html` via a local web server (`npm install -g http-server; http-server .`) to resolve texture loading issues.
+- **Image Not Displaying**: Ensure images are valid PNG/JPEG with colored areas (alpha > 128). Check the browser console for errors.
+- **Performance Issues**: Reduce `particleCount` (e.g., to `30000`) or set **Render Quality** to **Performance** in the settings panel.
+- **Settings Button Invisible**: The button pulses on page load; look for a subtle orange glow in the bottom-right corner.
+- **Mobile Layout Issues**: The panel should auto-adjust; ensure your browser is updated.
 ## License
-
 <!-- Paragraph with link to LICENSE file -->
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
 ## Acknowledgments
-
 <!-- Unordered list for acknowledgments -->
 - Built with [Three.js](https://threejs.org/) for rendering and post-processing.
-- Inspired by holographic and particle-based visual effects for OLED/WLED displays.
-
+- Inspired by holographic particle effects for OLED/WLED displays.
+- Special thanks to the Three.js community for resources and examples.
 <!-- Bold and emoji for emphasis -->
-**Enjoy crafting your own particle screen saver!** ✨
+**Enjoy your mesmerizing particle screen saver!** ✨
