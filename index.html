@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Procedural Fractal Hologram with Organic Transitions</title>
+    <title>Dynamic Procedural Hologram</title>
+    <script src="https://www.paypal.com/sdk/js?client-id=BAABHzyXoJNTLx-eSufsCwc9jbWmlRLhNB72SZrXjZH8NFkdmtDC9BXMHz_hDybUAN8Pby4dHPSWzKTx7Y&components=hosted-buttons&disable-funding=venmo&currency=AUD"></script>
     <style>
         body {
             margin: 0;
@@ -16,9 +17,458 @@
         canvas {
             display: block;
         }
+        /* --- Loading Overlay --- */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #a79cff;
+            font-size: 1.2em;
+            transition: opacity 0.5s ease;
+        }
+
+            #loading-overlay.hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(167, 156, 255, 0.3);
+            border-top-color: #a79cff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        /* --- UI Controls CSS --- */
+        #settings-panel, #store-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 850px;
+            max-width: 95%;
+            background: rgba(10, 15, 30, 0.85);
+            border: 1px solid rgba(79, 66, 181, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px 25px;
+            z-index: 1000;
+            color: #eee;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            transition: opacity 0.4s ease, transform 0.4s ease, bottom 0.4s ease;
+        }
+
+            #settings-panel.hidden, #store-panel.hidden {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateX(-50%) translateY(20px);
+            }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(79, 66, 181, 0.3);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+            .panel-header h3 {
+                margin: 0;
+                font-weight: 300;
+                letter-spacing: 1px;
+                color: #a79cff;
+            }
+
+        #hide-settings-btn, #hide-store-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+        }
+
+            #hide-settings-btn:hover, #hide-store-btn:hover {
+                color: #fff;
+            }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .store-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 10px 0;
+        }
+
+        .store-item {
+            background: rgba(20, 20, 40, 0.9);
+            border: 1px solid rgba(79, 66, 181, 0.4);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+            .store-item h4 {
+                margin: 0 0 10px 0;
+                font-weight: 400;
+                color: #a79cff;
+                font-size: 14px;
+            }
+
+        .control-column h4 {
+            margin-top: 5px;
+            margin-bottom: 15px;
+            font-weight: 400;
+            color: #a79cff;
+            border-bottom: 1px solid rgba(79, 66, 181, 0.2);
+            padding-bottom: 5px;
+        }
+
+        .slider-container {
+            margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: 1fr 90px 45px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+            .slider-container label, .select-container label, .checkbox-container label {
+                font-weight: 300;
+            }
+
+            .slider-container input[type="range"] {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100%;
+                height: 5px;
+                background: rgba(0, 0, 0, 0.4);
+                border-radius: 5px;
+                outline: none;
+                margin: 0 10px;
+            }
+
+                .slider-container input[type="range"]::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 15px;
+                    height: 15px;
+                    background: #a79cff;
+                    cursor: pointer;
+                    border-radius: 50%;
+                    border: 2px solid #1c1a3a;
+                }
+
+            .slider-container span {
+                font-family: monospace;
+                font-size: 12px;
+                text-align: right;
+                color: #ccc;
+            }
+
+        #show-settings-btn, #show-store-btn {
+            position: fixed;
+            bottom: 20px;
+            padding: 8px 15px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            z-index: 999;
+            transition: all 0.3s ease;
+        }
+
+        #show-settings-btn {
+            right: 20px;
+        }
+
+        #show-store-btn {
+            left: 20px;
+        }
+
+            #show-settings-btn:hover, #show-store-btn:hover {
+                background: rgba(79, 66, 181, 0.4);
+                color: rgba(255, 255, 255, 0.9);
+                border: 1px solid rgba(79, 66, 181, 0.9);
+            }
+
+        .panel-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(79, 66, 181, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .image-set-controls {
+            flex-grow: 1;
+        }
+
+            .image-set-controls h4 {
+                margin: 0 0 5px 0;
+                font-weight: 400;
+                color: #a79cff;
+            }
+
+            .image-set-controls p {
+                font-size: 13px;
+                font-weight: 300;
+                color: #bbb;
+                margin: 0 0 10px 0;
+            }
+
+        #load-set-btn {
+            background: #3e358a;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+
+            #load-set-btn:hover {
+                background: #5045b3;
+            }
+
+        #current-set-info {
+            margin-top: 10px !important;
+            font-style: italic;
+            color: #888;
+            font-size: 12px;
+        }
+
+        #apply-settings-btn {
+            background: #4F42B5;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+        }
+
+            #apply-settings-btn:hover {
+                background: #6a5acd;
+            }
+
+            #apply-settings-btn.pending {
+                box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7);
+                animation: pulse 1.5s infinite;
+            }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 152, 0, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 152, 0, 0);
+            }
+        }
+
+        .select-container, .checkbox-container, .color-picker-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+
+        select {
+            background: #1c1a3a;
+            color: #eee;
+            border: 1px solid #4F42B5;
+            border-radius: 4px;
+            padding: 3px;
+            cursor: pointer;
+        }
+
+        input[type="color"] {
+            width: 40px;
+            height: 25px;
+            border: 1px solid #555;
+            padding: 2px;
+            background: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        input[type="checkbox"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: rgba(0,0,0,0.3);
+            margin: 0;
+            width: 1.15em;
+            height: 1.15em;
+            border: 1px solid #4F42B5;
+            border-radius: 3px;
+            transform: translateY(-0.075em);
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+        }
+
+            input[type="checkbox"]::before {
+                content: "";
+                width: 0.65em;
+                height: 0.65em;
+                transform: scale(0);
+                transition: 120ms transform ease-in-out;
+                box-shadow: inset 1em 1em #a79cff;
+                transform-origin: center;
+                clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+            }
+
+            input[type="checkbox"]:checked::before {
+                transform: scale(1);
+            }
+
+        .preset-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .preset-button {
+            background: #3e358a;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+            .preset-button:hover {
+                background: #5045b3;
+                transform: translateY(-1px);
+            }
     </style>
 </head>
 <body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-text">Caching Holograms...</p>
+    </div>
+    <div id="settings-panel" class="hidden">
+        <div class="panel-header">
+            <h3>Dynamic Hologram Controls</h3>
+            <button id="hide-settings-btn">&times;</button>
+        </div>
+        <div class="controls-grid">
+            <div class="control-column">
+                <h4>Core Graphics Settings</h4>
+                <div class="slider-container"><label for="particle-count">Particle Count</label><input type="range" id="particle-count" min="10000" max="150000" step="1000"><span id="particle-count-value"></span></div>
+                <div class="select-container"><label for="render-quality">Render Quality</label><select id="render-quality"><option value="auto">High</option><option value="1">Performance</option></select></div>
+                <div class="select-container"><label for="water-quality">Water Quality</label><select id="water-quality"><option value="2048">High</option><option value="1024">Medium</option><option value="512">Low</option></select></div>
+                <div class="checkbox-container"><label for="antialiasing">Antialiasing (AA)</label><input type="checkbox" id="antialiasing" checked></div>
+                <div class="color-picker-container"><label for="light-color">Light Color</label><input type="color" id="light-color"></div>
+            </div>
+            <div class="control-column">
+                <h4>Scene & Particles</h4>
+                <div class="slider-container"><label for="point-size">Particle Size</label><input type="range" id="point-size" min="0.001" max="0.05" step="0.001"><span id="point-size-value"></span></div>
+                <div class="slider-container"><label for="rotation-speed-y">Y-Axis Rotate</label><input type="range" id="rotation-speed-y" min="-0.02" max="0.02" step="0.0005"><span id="rotation-speed-y-value"></span></div>
+                <div class="slider-container"><label for="camera-fov">Camera FOV</label><input type="range" id="camera-fov" min="20" max="120" step="1"><span id="camera-fov-value"></span></div>
+                <div class="slider-container"><label for="fog-near">Fog Near</label><input type="range" id="fog-near" min="1" max="50" step="1"><span id="fog-near-value"></span></div>
+                <div class="slider-container"><label for="fog-far">Fog Far</label><input type="range" id="fog-far" min="10" max="500" step="10"><span id="fog-far-value"></span></div>
+                <div class="slider-container"><label for="hue-offset">Color Hue Offset</label><input type="range" id="hue-offset" min="0" max="1" step="0.01"><span id="hue-offset-value"></span></div>
+            </div>
+            <div class="control-column">
+                <h4>Effects & Transitions</h4>
+                <div class="checkbox-container"><label for="post-processing">Glow Effect (Bloom)</label><input type="checkbox" id="post-processing" checked></div>
+                <div class="slider-container"><label for="bloom-strength">Glow Strength</label><input type="range" id="bloom-strength" min="0" max="2" step="0.01"><span id="bloom-strength-value"></span></div>
+                <div class="slider-container"><label for="bloom-radius">Glow Radius</label><input type="range" id="bloom-radius" min="0" max="2" step="0.01"><span id="bloom-radius-value"></span></div>
+                <div class="slider-container"><label for="transition-duration">Transition Time</label><input type="range" id="transition-duration" min="1" max="60" step="0.5"><span id="transition-duration-value"></span></div>
+                <div class="slider-container"><label for="transition-explode">Explode Force</label><input type="range" id="transition-explode" min="0" max="40" step="1"><span id="transition-explode-value"></span></div>
+                <div class="slider-container"><label for="transition-gravity">Transition Gravity</label><input type="range" id="transition-gravity" min="-50" max="50" step="1"><span id="transition-gravity-value"></span></div>
+                <div class="slider-container"><label for="transition-pull">Transition Pull</label><input type="range" id="transition-pull" min="0" max="50" step="0.1"><span id="transition-pull-value"></span></div>
+                <div class="slider-container"><label for="water-speed">Water Speed</label><input type="range" id="water-speed" min="0" max="2" step="0.05"><span id="water-speed-value"></span></div>
+                <div class="slider-container"><label for="water-distortion">Water Distort</label><input type="range" id="water-distortion" min="0" max="5" step="0.05"><span id="water-distortion-value"></span></div>
+                <h4>Presets</h4>
+                <div class="preset-container">
+                    <button class="preset-button" id="preset-emergent">Emergent</button>
+                    <button class="preset-button" id="preset-skyfall">Skyfall</button>
+                    <button class="preset-button" id="preset-mindful">Mindful</button>
+                </div>
+            </div>
+        </div>
+        <div class="panel-footer">
+            <div class="image-set-controls">
+                <h4>Hologram Image Sets</h4>
+                <p>Load your own set of B&W silhouette PNGs.</p>
+                <button id="load-set-btn">Load Custom Set</button>
+                <input type="file" id="image-upload-input" multiple accept="image/png, image/jpeg" style="display: none;">
+                <p id="current-set-info"></p>
+            </div>
+            <button id="apply-settings-btn">Apply & Reboot Scene</button>
+        </div>
+    </div>
+    <div id="store-panel" class="hidden">
+        <div class="panel-header">
+            <h3>Store</h3>
+            <button id="hide-store-btn">&times;</button>
+        </div>
+        <div class="store-grid">
+            <div class="store-item">
+                <h4>Pokemon Stack (151 Collection)</h4>
+                <div id="paypal-container-NHQ96FNGHSS9U"></div>
+                <script>
+                    paypal.HostedButtons({
+                        hostedButtonId: "NHQ96FNGHSS9U",
+                    }).render("#paypal-container-NHQ96FNGHSS9U");
+                </script>
+            </div>
+            <!-- Placeholder for future PayPal buttons -->
+            <div class="store-item">
+                <h4>Coming Soon</h4>
+                <p>More holographic art sets will be available soon!</p>
+            </div>
+        </div>
+    </div>
+    <button id="show-settings-btn">SETTINGS</button>
+    <button id="show-store-btn">STORE</button>
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     <script type="importmap">
         {
@@ -28,535 +478,643 @@
             }
         }
     </script>
-    <script type="module">import * as THREE from 'three';
+    <script type="module">
+        import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { Water } from 'three/addons/objects/Water.js';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
         import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-
-        // --- Scene Setup ---
-        const scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0x000000, 5, 30);
-        const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
-        const clock = new THREE.Clock();
-
-        // --- Transition State Variables ---
-        const PARTICLE_COUNT = 75000;
-        const SCALE_FACTOR = 2;
-        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
-        let startPositions = new Float32Array(PARTICLE_COUNT * 3);
-        let controlPoints = new Float32Array(PARTICLE_COUNT * 3);
-        let isTransitioning = false;
-        let transitionProgress = 0.0;
-        const TRANSITION_DURATION = 8.0; // in seconds
-
-        // --- Post-Processing Setup ---
-        const composer = new EffectComposer(renderer);
-        const renderPass = new RenderPass(scene, camera);
-        composer.addPass(renderPass);
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.2, // strength
-            0.1, // radius
-            0.3 // threshold
-        );
-        composer.addPass(bloomPass);
-        const bokehPass = new BokehPass(scene, camera, {
-            focus: 0,
-            aperture: 0,
-            maxblur: 0.00,
-        });
-        composer.addPass(bokehPass);
-        const outputPass = new OutputPass();
-        composer.addPass(outputPass);
-
-        // --- Controls & Lighting ---
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.autoRotate = false;
-        camera.position.set(0, 8, 21);
-        controls.target.set(0, 5, 0);
-        const lightColor = 0x4F42B5;
-        const ambientLight = new THREE.AmbientLight(lightColor, 1);
-        scene.add(ambientLight);
-        const spotLight = new THREE.SpotLight(lightColor, 2.5, 40, Math.PI / 4, 0.5, 1);
-        spotLight.position.set(0, 20, 0);
-        scene.add(spotLight);
-        scene.add(spotLight.target);
-        const sun = new THREE.Vector3();
-        sun.copy(spotLight.position).normalize();
-
-        // --- Star Field ---
-        const STAR_COUNT = 1000;
-        const starGeometry = new THREE.BufferGeometry();
-        const starPositions = new Float32Array(STAR_COUNT * 3);
-        const starOpacities = new Float32Array(STAR_COUNT);
-        const starFadeStates = new Float32Array(STAR_COUNT);
-        const starFadeTimers = new Float32Array(STAR_COUNT);
-        const FADE_DURATION = 3;
-        const MIN_FADE_INTERVAL = 10;
-        const MAX_FADE_INTERVAL = 20;
-        for (let i = 0; i < STAR_COUNT; i++) {
-            const i3 = i * 3;
-            const theta = Math.random() * 2 * Math.PI;
-            const phi = Math.acos(2 * Math.random() - 1);
-            const radius = 100;
-            starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-            starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-            starPositions[i3 + 2] = radius * Math.cos(phi);
-            starOpacities[i] = 1.0;
-            starFadeStates[i] = 0;
-            starFadeTimers[i] = Math.random() * (MAX_FADE_INTERVAL - MIN_FADE_INTERVAL) + MIN_FADE_INTERVAL;
+        let scene, camera, renderer, clock, controls, composer, bloomPass;
+        let particleGroup, particles, trailParticles, water, ambientLight, spotLight, sun;
+        let mainGeometry, trailGeometry;
+        let isTransitioning = false, transitionProgress = 0.0, hueOffset = Math.random();
+        let targetPositions, startPositions, particleVelocities;
+        let currentGeneratorIndex = 0, shapeGenerators = [], countdownTimer;
+        const EXPLOSION_CACHE_SIZE = 512;
+        let explosionCache = [];
+        let hologramDataCache = {};
+        let settings = {};
+        let pendingSettings = {};
+        let savedState = null; // To preserve state across reboots
+        function setDefaultSettings() {
+            settings = {
+                particleCount: 30000,
+                scaleFactor: 2,
+                autoRotateSpeedY: 0.003,
+                pointSize: 0.01,
+                transitionDuration: 15.0,
+                transitionExplosion: 24.0,
+                transitionGravity: 0.0,
+                transitionPull: 5.0,
+                lightColor: '#4F42B5',
+                bloom: { strength: 0.1, radius: 0.05, threshold: 0.2 },
+                fog: { near: 5, far: 30 },
+                water: { quality: 512, distortion: 0.30, speed: 0.25 },
+                camera: { fov: 80 },
+                graphics: { renderQuality: 'auto', antialias: true, postProcessing: false },
+                hueOffset: 0.0
+            };
+            pendingSettings = JSON.parse(JSON.stringify(settings));
         }
-        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        starGeometry.setAttribute('opacity', new THREE.BufferAttribute(starOpacities, 1));
-        const starMaterial = new THREE.PointsMaterial({
-            size: 0.5,
-            color: 0xffffff,
-            transparent: true,
-            vertexColors: false,
-            map: new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png'),
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        const stars = new THREE.Points(starGeometry, starMaterial);
-        scene.add(stars);
-
-        // --- Water Surface ---
-        const waterGeometry = new THREE.PlaneGeometry(1000, 1000);
-        const waterNormals = new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', function (texture) {
-            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(4, 4);
-            const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.anisotropy = Math.min(16, maxAnisotropy);
-        });
-        const water = new Water(
-            waterGeometry,
-            {
-                textureWidth: 2048,
-                textureHeight: 2048,
-                waterNormals: waterNormals,
-                sunDirection: sun,
-                sunColor: lightColor,
-                waterColor: new THREE.Color(0x000000),
-                alpha: 0.5,
-                distortionScale: 0.3,
-                fog: scene.fog !== undefined
-            }
-        );
-        water.rotation.x = -Math.PI / 2;
-        water.position.y = -0.3;
-        scene.add(water);
-        water.material.uniforms['normalSampler'].value = waterNormals;
-        water.material.uniforms['distortionScale'].value = 0.3;
-        water.material.uniforms['waterColor'].value.set(0, 0, 0);
-        water.material.uniforms['edgeFade'] = { value: 0.1 };
-        water.material.onBeforeCompile = (shader) => {
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <normalmap_pars_fragment>',
-                `
-                #include <normalmap_pars_fragment>
-                uniform float edgeFade;
-                `
-            );
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <normal_fragment_maps>',
-                `
-                #include <normal_fragment_maps>
-                vec2 uv = vUv;
-                float edgeFactor = smoothstep(0.0, edgeFade, uv.x) * smoothstep(0.0, edgeFade, 1.0 - uv.x) *
-                                   smoothstep(0.0, edgeFade, uv.y) * smoothstep(0.0, edgeFade, 1.0 - uv.y);
-                normal = mix(vec3(0.0, 0.0, 1.0), normal, edgeFactor);
-                `
-            );
-        };
-
-        // --- Particle Group ---
-        const particleGroup = new THREE.Group();
-        scene.add(particleGroup);
-
-        // --- Particle System ---
-        const mainGeometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(PARTICLE_COUNT * 3);
-        const colors = new Float32Array(PARTICLE_COUNT * 3);
-        const yPositions = new Float32Array(PARTICLE_COUNT);
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            const i3 = i * 3;
-            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
-            const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
-            positions[i3] = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
-            positions[i3 + 1] = (4 * Math.sin(theta) * Math.sin(phi) + 4) * SCALE_FACTOR;
-            positions[i3 + 2] = 4 * Math.cos(phi) * SCALE_FACTOR;
-            yPositions[i] = positions[i3 + 1];
+        async function init() {
+            scene = new THREE.Scene();
+            clock = new THREE.Clock();
+            setupUI();
+            loadDefaultGenerators();
+            await preCacheHolograms(shapeGenerators, 'Caching Default Set...');
+            rebuildScene();
+            countdownTimer = setInterval(shapeTransitionLoop, 1000);
+            animate();
         }
-        mainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        mainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(yPositions, 1));
-        const mainMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                pointSize: { value: 0.01 },
-                waterLevel: { value: -0.3 },
-                maxDepth: { value: 8 * SCALE_FACTOR }
-            },
-            vertexShader: `
-                attribute vec3 color;
-                attribute float yPosition;
-                varying vec3 vColor;
-                varying float vBrightness;
-                uniform float pointSize;
-                uniform float waterLevel;
-                uniform float maxDepth;
-                void main() {
-                    vColor = color;
-                    float depth = max(0.0, waterLevel - yPosition);
-                    vBrightness = 1.0 - smoothstep(0.0, maxDepth, depth);
-                    gl_PointSize = pointSize * 1000.0 / length(position - cameraPosition);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec3 vColor;
-                varying float vBrightness;
-                void main() {
-                    gl_FragColor = vec4(vColor * vBrightness, vBrightness * 0.8);
-                }
-            `,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            depthWrite: false
-        });
-        const particles = new THREE.Points(mainGeometry, mainMaterial);
-        particleGroup.add(particles);
-
-        // --- Trail System ---
-        const trailGeometry = new THREE.BufferGeometry();
-        const trailPositions = new Float32Array(positions);
-        const trailColors = new Float32Array(colors);
-        const trailYPositions = new Float32Array(yPositions);
-        trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-        trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3));
-        trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(trailYPositions, 1));
-        const trailMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                pointSize: { value: 0.01 },
-                waterLevel: { value: -0.3 },
-                maxDepth: { value: 8 * SCALE_FACTOR }
-            },
-            vertexShader: `
-                attribute vec3 color;
-                attribute float yPosition;
-                varying vec3 vColor;
-                varying float vBrightness;
-                uniform float pointSize;
-                uniform float waterLevel;
-                uniform float maxDepth;
-                void main() {
-                    vColor = color;
-                    float depth = max(0.0, waterLevel - yPosition);
-                    vBrightness = 1.0 - smoothstep(0.0, maxDepth, depth);
-                    gl_PointSize = pointSize * 1000.0 / length(position - cameraPosition);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec3 vColor;
-                varying float vBrightness;
-                void main() {
-                    gl_FragColor = vec4(vColor * vBrightness, vBrightness * 0.4);
-                }
-            `,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            depthWrite: false
-        });
-        const trailParticles = new THREE.Points(trailGeometry, trailMaterial);
-        particleGroup.add(trailParticles);
-        const originalOnBeforeRender = water.onBeforeRender.bind(water);
-        water.onBeforeRender = (renderer, scene, camera) => {
-            trailParticles.visible = false;
-            originalOnBeforeRender(renderer, scene, camera);
-            trailParticles.visible = true;
-        };
-
-        // --- Image-Based Shape Generation ---
-        const imageCache = {};
-        function generatePointsFromImage(count, imageUrl, onComplete) {
-            const loader = new THREE.TextureLoader();
-            if (imageCache[imageUrl]) {
-                processImageData(count, imageCache[imageUrl], onComplete);
+        function saveParticleState() {
+            if (!mainGeometry || !trailGeometry) return;
+            savedState = {
+                isTransitioning: isTransitioning,
+                transitionProgress: transitionProgress,
+                currentGeneratorIndex: currentGeneratorIndex,
+                mainPositions: new Float32Array(mainGeometry.attributes.position.array),
+                trailPositions: new Float32Array(trailGeometry.attributes.position.array),
+                mainColors: new Float32Array(mainGeometry.attributes.color.array),
+                trailColors: new Float32Array(trailGeometry.attributes.color.array),
+                targetPositions: new Float32Array(targetPositions),
+                startPositions: new Float32Array(startPositions),
+                particleVelocities: new Float32Array(particleVelocities),
+                hueOffset: hueOffset,
+                particleCount: mainGeometry.attributes.position.count
+            };
+        }
+        function restoreParticleState() {
+            if (!savedState) return;
+            if (savedState.particleCount !== mainGeometry.attributes.position.count) {
+                savedState = null;
+                isTransitioning = false;
+                updateTarget();
                 return;
             }
-            loader.load(imageUrl, (texture) => {
-                const image = texture.image;
-                imageCache[imageUrl] = image;
-                processImageData(count, image, onComplete);
-            }, undefined, (err) => {
-                console.error(`Could not load image: ${imageUrl}. Falling back to a sphere.`, err);
-                onComplete(generateSphere(count));
-            });
+            isTransitioning = savedState.isTransitioning;
+            transitionProgress = savedState.transitionProgress;
+            currentGeneratorIndex = savedState.currentGeneratorIndex;
+            hueOffset = savedState.hueOffset;
+            mainGeometry.attributes.position.array.set(savedState.mainPositions);
+            mainGeometry.attributes.position.needsUpdate = true;
+            mainGeometry.attributes.color.array.set(savedState.mainColors);
+            mainGeometry.attributes.color.needsUpdate = true;
+            trailGeometry.attributes.position.array.set(savedState.trailPositions);
+            trailGeometry.attributes.position.needsUpdate = true;
+            trailGeometry.attributes.color.array.set(savedState.trailColors);
+            trailGeometry.attributes.color.needsUpdate = true;
+            targetPositions.set(savedState.targetPositions);
+            startPositions.set(savedState.startPositions);
+            particleVelocities.set(savedState.particleVelocities);
+            savedState = null;
         }
-        function processImageData(count, image, onComplete) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+        function rebuildScene() {
+            saveParticleState();
+            isTransitioning = false;
+            if (particleGroup) scene.remove(particleGroup);
+            if (water) scene.remove(water);
+            if (ambientLight) scene.remove(ambientLight);
+            if (spotLight) scene.remove(spotLight);
+            if (mainGeometry) mainGeometry.dispose();
+            if (trailGeometry) trailGeometry.dispose();
+            if (particles) particles.material.dispose();
+            if (trailParticles) trailParticles.material.dispose();
+            if (renderer) {
+                renderer.dispose();
+                renderer.forceContextLoss();
+                const oldCanvas = document.querySelector('canvas');
+                if (oldCanvas) oldCanvas.parentElement.removeChild(oldCanvas);
+            }
+            renderer = new THREE.WebGLRenderer({ antialias: settings.graphics.antialias });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            const pixelRatio = settings.graphics.renderQuality === 'auto' ? window.devicePixelRatio : 1.0;
+            renderer.setPixelRatio(pixelRatio);
+            document.body.appendChild(renderer.domElement);
+            camera = new THREE.PerspectiveCamera(settings.camera.fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 21);
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 5, 0);
+            composer = new EffectComposer(renderer);
+            composer.addPass(new RenderPass(scene, camera));
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight),
+                settings.bloom.strength, settings.bloom.radius, settings.bloom.threshold);
+            composer.addPass(bloomPass);
+            composer.addPass(new OutputPass());
+            scene.fog = new THREE.Fog(0x000000, settings.fog.near, settings.fog.far);
+            const color = new THREE.Color(settings.lightColor);
+            ambientLight = new THREE.AmbientLight(color, 1);
+            scene.add(ambientLight);
+            spotLight = new THREE.SpotLight(color, 2.5, 40, Math.PI / 4, 0.5, 1);
+            spotLight.position.set(0, 20, 0);
+            scene.add(spotLight);
+            sun = new THREE.Vector3().copy(spotLight.position).normalize();
+            buildWater();
+            particleGroup = new THREE.Group();
+            scene.add(particleGroup);
+            buildParticles();
+            precalculateExplosions();
+            restoreParticleState();
+            if (!isTransitioning) updateTarget();
+        }
+        function buildWater() {
+            const waterGeometry = new THREE.PlaneGeometry(1000, 1000);
+            water = new Water(waterGeometry, {
+                textureWidth: settings.water.quality,
+                textureHeight: settings.water.quality,
+                waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', t => {
+                    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+                }),
+                sunDirection: sun,
+                sunColor: settings.lightColor,
+                waterColor: 0x001e0f,
+                distortionScale: settings.water.distortion,
+                fog: true
+            });
+            water.rotation.x = -Math.PI / 2;
+            water.position.y = -0.3;
+            scene.add(water);
+        }
+        function buildParticles() {
+            targetPositions = new Float32Array(settings.particleCount * 3);
+            startPositions = new Float32Array(settings.particleCount * 3);
+            particleVelocities = new Float32Array(settings.particleCount * 3);
+            const positions = new Float32Array(settings.particleCount * 3);
+            const colors = new Float32Array(settings.particleCount * 3);
+            mainGeometry = new THREE.BufferGeometry();
+            mainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            mainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            trailGeometry = new THREE.BufferGeometry();
+            trailGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+            const mainMaterial = new THREE.ShaderMaterial({
+                uniforms: { pointSize: { value: settings.pointSize } },
+                vertexShader: `attribute vec3 color; varying vec3 vColor; uniform float pointSize; void main() { vColor = color; gl_PointSize = pointSize * 1500.0 / length(position - cameraPosition); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                fragmentShader: `varying vec3 vColor; void main(){ gl_FragColor = vec4(vColor, 0.8); }`,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false
+            });
+            const trailMaterial = mainMaterial.clone();
+            trailMaterial.fragmentShader = `varying vec3 vColor; void main(){ gl_FragColor = vec4(vColor, 0.4); }`;
+            particles = new THREE.Points(mainGeometry, mainMaterial);
+            trailParticles = new THREE.Points(trailGeometry, trailMaterial);
+            particleGroup.add(particles);
+            particleGroup.add(trailParticles);
+        }
+        function precalculateExplosions() {
+            explosionCache = [];
+            for (let i = 0; i < EXPLOSION_CACHE_SIZE; i++) {
+                const theta = Math.random() * 2 * Math.PI;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const explosionVec = new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi));
+                explosionCache.push(explosionVec);
+            }
+        }
+        let countdown = 15;
+        function shapeTransitionLoop() {
+            countdown--;
+            if (countdown <= 0) {
+                countdown = 15;
+                if (!isTransitioning) updateTarget();
+            }
+        }
+        function updateTarget() {
+            if (shapeGenerators.length === 0 || !mainGeometry) return;
+            let attempts = 0;
+            let generatorInfo, cachedData;
+            while (!cachedData && attempts < shapeGenerators.length) {
+                generatorInfo = shapeGenerators[currentGeneratorIndex];
+                cachedData = hologramDataCache[generatorInfo.name];
+                if (!cachedData) {
+                    console.warn(`Hologram data for "${generatorInfo.name}" not found in cache. Skipping.`);
+                    currentGeneratorIndex = (currentGeneratorIndex + 1) % shapeGenerators.length;
+                    attempts++;
+                }
+            }
+            if (!cachedData) {
+                console.error("Could not find any valid cached hologram data. Falling back to Sphere.");
+                currentGeneratorIndex = 0;
+                cachedData = hologramDataCache['Sphere'];
+                if (!cachedData) {
+                    console.error("Sphere data not cached. Cannot proceed.");
+                    return;
+                }
+            }
+            hueOffset = Math.random();
+            targetPositions.set(cachedData.positions);
+            mainGeometry.setAttribute('color', new THREE.BufferAttribute(cachedData.colors, 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(cachedData.colors, 3));
+            startPositions.set(mainGeometry.attributes.position.array);
+            for (let i = 0; i < mainGeometry.attributes.position.count; i++) {
+                const i3 = i * 3;
+                const cachedVec = explosionCache[i % EXPLOSION_CACHE_SIZE].clone();
+                const randomStrength = settings.transitionExplosion * (0.75 + Math.random() * 0.5);
+                cachedVec.multiplyScalar(randomStrength);
+                particleVelocities[i3] = cachedVec.x;
+                particleVelocities[i3 + 1] = Math.abs(cachedVec.y);
+                particleVelocities[i3 + 2] = cachedVec.z;
+            }
+            transitionProgress = 0.0;
+            isTransitioning = true;
+            currentGeneratorIndex = (currentGeneratorIndex + 1) % shapeGenerators.length;
+        }
+        function updateColors() {
+            if (!mainGeometry) return;
+            const colors = new Float32Array(settings.particleCount * 3);
+            const color = new THREE.Color();
+            const positions = mainGeometry.attributes.position.array;
+            const S = settings.scaleFactor;
+            for (let i = 0; i < settings.particleCount; i++) {
+                const i3 = i * 3;
+                const y = positions[i3 + 1];
+                const hue = ((y / (8 * S) + 0.5) + settings.hueOffset) % 1.0;
+                color.setHSL(hue, 0.9, 0.6);
+                colors[i3] = color.r;
+                colors[i3 + 1] = color.g;
+                colors[i3 + 2] = color.b;
+            }
+            mainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        }
+        function processImageData(image, count) {
+            const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
             canvas.width = image.width;
             canvas.height = image.height;
             ctx.drawImage(image, 0, 0);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
             const validPoints = [];
             for (let i = 0; i < data.length; i += 4) {
-                if (data[i] > 128) {
-                    const x = (i / 4) % canvas.width;
-                    const y = Math.floor((i / 4) / canvas.width);
-                    validPoints.push(new THREE.Vector2(x, y));
-                }
+                if (data[i] > 128) validPoints.push(new THREE.Vector2((i / 4) % canvas.width, Math.floor((i / 4) / canvas.width)));
             }
-            if (validPoints.length === 0) {
-                console.error("No valid points found in the image. Is it a black and white silhouette?");
-                onComplete(generateSphere(count));
-                return;
-            }
-            const boundingBox = new THREE.Box2().setFromPoints(validPoints);
-            const center = new THREE.Vector2();
-            boundingBox.getCenter(center);
-            const size = new THREE.Vector2();
-            boundingBox.getSize(size);
-            const finalPoints = [];
-            const finalColors = [];
-            const finalYPositions = [];
+            if (validPoints.length === 0) { return null; }
+            const box = new THREE.Box2().setFromPoints(validPoints);
+            const center = new THREE.Vector2(), size = new THREE.Vector2();
+            box.getCenter(center);
+            box.getSize(size);
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
             const color = new THREE.Color();
-            const finalScale = 8 / Math.max(size.x, size.y) * SCALE_FACTOR;
+            const S = settings.scaleFactor;
+            const finalScale = 8 / Math.max(size.x, size.y) * S;
             for (let i = 0; i < count; i++) {
+                const i3 = i * 3;
                 const p = validPoints[Math.floor(Math.random() * validPoints.length)];
-                if (p) {
-                    const x = (p.x - center.x) * finalScale;
-                    const y = (-(p.y - center.y) * finalScale) + 4 * SCALE_FACTOR;
-                    const z = (Math.random() - 0.5) * 0.5 * SCALE_FACTOR;
-                    finalPoints.push(x, y, z);
-                    finalYPositions.push(y);
-                    const hue = (y / (8 * SCALE_FACTOR) + 0.5) % 1.0;
-                    color.setHSL(hue, 0.9, 0.6);
-                    finalColors.push(color.r, color.g, color.b);
-                }
-            }
-            mainGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
-            mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(finalYPositions), 1));
-            trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
-            trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(finalYPositions), 1));
-            onComplete(new Float32Array(finalPoints));
-        }
-        function generateSphere(count) {
-            const points = [];
-            const colorsArr = [];
-            const yPositionsArr = [];
-            const color = new THREE.Color();
-            for (let i = 0; i < count; i++) {
-                const phi = Math.acos(-1 + (2 * i) / count);
-                const theta = Math.sqrt(count * Math.PI) * phi;
-                const x = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
-                const y = (4 * Math.sin(theta) * Math.sin(phi)) * SCALE_FACTOR;
-                const z = 4 * Math.cos(phi) * SCALE_FACTOR;
-                points.push(x, y + 4 * SCALE_FACTOR, z);
-                yPositionsArr.push(y + 4 * SCALE_FACTOR);
-                const hue = (y / (8 * SCALE_FACTOR) + 0.5) % 1.0;
+                const x = (p.x - center.x) * finalScale;
+                const y = (-(p.y - center.y) * finalScale) + 4 * S;
+                const z = (Math.random() - 0.5) * 0.5 * S;
+                positions.set([x, y, z], i3);
+                const hue = ((y / (8 * S) + 0.5) + settings.hueOffset) % 1.0;
                 color.setHSL(hue, 0.9, 0.6);
-                colorsArr.push(color.r, color.g, color.b);
+                colors.set([color.r, color.g, color.b], i3);
             }
-            mainGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorsArr), 3));
-            mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(yPositionsArr), 1));
-            trailGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorsArr), 3));
-            trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(new Float32Array(yPositionsArr), 1));
-            return new Float32Array(points);
+            return { positions, colors };
         }
-
-        // --- Animation & Update Logic ---
-        const silhouetteFiles = [
-            'horse.png',
-            'wild.png',
-            'face.png',
-            'leaf.png',
-            'test.png',
-            'test2.png',
-            'test3.png',
-            'test4.png',
-            'test5.png',
-            'test6.png',
-            'test7.png',
-            'test8.png',
-            'test9.png',
-            'test10.png',
-        ];
-        const shapeGenerators = [
-            { name: 'Sphere', generator: (count, cb) => cb(generateSphere(count)) }
-        ];
-        silhouetteFiles.forEach(file => {
-            const name = file.split('.')[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            shapeGenerators.unshift({ name: name, generator: (count, cb) => generatePointsFromImage(count, file, cb) });
-        });
-        let currentGeneratorIndex = 0;
-        function updateTarget() {
-            const generatorInfo = shapeGenerators[currentGeneratorIndex];
-            generatorInfo.generator(PARTICLE_COUNT, (newTargetPositions) => {
-                targetPositions = newTargetPositions;
-                startPositions.set(mainGeometry.attributes.position.array);
-                const center = new THREE.Vector3(0, 4 * SCALE_FACTOR, 1);
-                const yPositionsArr = new Float32Array(PARTICLE_COUNT);
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    const i3 = i * 3;
-                    const p0 = new THREE.Vector3(startPositions[i3], startPositions[i3 + 1], startPositions[i3 + 2]);
-                    const p2 = new THREE.Vector3(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
-                    const midpoint = new THREE.Vector3().addVectors(p0, p2).multiplyScalar(0.5);
-                    const explosionStrength = 4 + Math.random() * 8;
-                    const upwardStrength = 3 + Math.random() * 7;
-                    const offset = new THREE.Vector3().subVectors(midpoint, center).normalize().multiplyScalar(explosionStrength);
-                    offset.y += upwardStrength;
-                    const p1 = new THREE.Vector3().addVectors(midpoint, offset);
-                    controlPoints[i3] = p1.x;
-                    controlPoints[i3 + 1] = p1.y;
-                    controlPoints[i3 + 2] = p1.z;
-                    yPositionsArr[i] = targetPositions[i3 + 1];
+        function generateHologramData(generatorInfo, count) {
+            return new Promise((resolve, reject) => {
+                const { name, isImage, url } = generatorInfo;
+                if (!isImage) {
+                    const S = settings.scaleFactor;
+                    const positions = new Float32Array(count * 3);
+                    const colors = new Float32Array(count * 3);
+                    const color = new THREE.Color();
+                    for (let i = 0; i < count; i++) {
+                        const i3 = i * 3;
+                        const phi = Math.acos(-1 + (2 * i) / count);
+                        const theta = Math.sqrt(count * Math.PI) * phi;
+                        const x = 4 * Math.cos(theta) * Math.sin(phi) * S;
+                        const y = (4 * Math.sin(theta) * Math.sin(phi)) * S;
+                        const z = 4 * Math.cos(phi) * S;
+                        positions.set([x, y + 4 * S, z], i3);
+                        const hue = ((y / (8 * S) + 0.5) + hueOffset) % 1.0;
+                        color.setHSL(hue, 0.9, 0.6);
+                        colors.set([color.r, color.g, color.b], i3);
+                    }
+                    resolve({ name, data: { positions, colors } });
+                } else {
+                    new THREE.TextureLoader().load(url, (texture) => {
+                        const data = processImageData(texture.image, count);
+                        if (data) {
+                            resolve({ name, data });
+                        } else {
+                            reject(new Error(`Failed to process image: ${name}`));
+                        }
+                    }, undefined, () => reject(new Error(`Failed to load image: ${name}`)));
                 }
-                mainGeometry.setAttribute('yPosition', new THREE.BufferAttribute(yPositionsArr, 1));
-                trailGeometry.setAttribute('yPosition', new THREE.BufferAttribute(yPositionsArr, 1));
-                transitionProgress = 0.0;
-                isTransitioning = true;
             });
-            currentGeneratorIndex = (currentGeneratorIndex + 1) % shapeGenerators.length;
         }
-        let countdown = 25;
-        setInterval(() => {
-            countdown--;
-            if (countdown <= 0) {
-                countdown = 25;
-                updateTarget();
+        async function preCacheHolograms(generatorsToCache, message) {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const loadingText = document.getElementById('loading-text');
+            loadingText.textContent = message;
+            loadingOverlay.classList.remove('hidden');
+            const cachePromises = generatorsToCache.map(async gen => {
+                try {
+                    return await generateHologramData(gen, settings.particleCount);
+                } catch (error) {
+                    console.warn(`Failed to cache hologram for "${gen.name}": ${error.message}`);
+                    return null;
+                }
+            });
+            try {
+                const results = await Promise.all(cachePromises);
+                results.forEach(result => {
+                    if (result) {
+                        hologramDataCache[result.name] = result.data;
+                    }
+                });
+                if (!hologramDataCache['Sphere']) {
+                    console.warn("Sphere not cached. Generating now.");
+                    const sphereData = await generateHologramData({ name: 'Sphere', isImage: false }, settings.particleCount);
+                    hologramDataCache['Sphere'] = sphereData.data;
+                }
+            } catch (error) {
+                console.error("Error during hologram caching:", error);
+            } finally {
+                loadingOverlay.classList.add('hidden');
             }
-        }, 1000);
-
-        // --- Helper functions for transition ---
-        function getQuadraticBezierPoint(t, p0, p1, p2) {
-            const u = 1 - t;
-            const tt = t * t;
-            const uu = u * u;
-            const p = p0.clone().multiplyScalar(uu);
-            p.add(p1.clone().multiplyScalar(2 * u * t));
-            p.add(p2.clone().multiplyScalar(tt));
-            return p;
         }
-        function easeOutCubic(t) {
-            return (--t) * t * t + 1;
+        function setupUI() {
+            const applyBtn = document.getElementById('apply-settings-btn');
+            document.getElementById('show-settings-btn').addEventListener('click', () => {
+                document.getElementById('settings-panel').classList.remove('hidden');
+                document.getElementById('store-panel').classList.add('hidden');
+            });
+            document.getElementById('hide-settings-btn').addEventListener('click', () => {
+                document.getElementById('settings-panel').classList.add('hidden');
+            });
+            document.getElementById('show-store-btn').addEventListener('click', () => {
+                document.getElementById('store-panel').classList.remove('hidden');
+                document.getElementById('settings-panel').classList.add('hidden');
+            });
+            document.getElementById('hide-store-btn').addEventListener('click', () => {
+                document.getElementById('store-panel').classList.add('hidden');
+            });
+            const connect = (id, type, objKey, isPending, subKey) => {
+                const el = document.getElementById(id);
+                if (!el) { console.error(`Element with ID "${id}" not found.`); return; }
+                const isCheck = type === 'checkbox';
+                const eventType = isCheck ? 'change' : 'input';
+                const prop = isCheck ? 'checked' : 'value';
+                const updateFunc = (e) => {
+                    let value = isCheck ? e.target.checked : e.target.value;
+                    if (type === 'slider' || !isNaN(parseFloat(value))) {
+                        value = parseFloat(value);
+                        if (type === 'slider') {
+                            const display = document.getElementById(`${id}-value`);
+                            display.textContent = value.toFixed(el.step.includes('.') ? el.step.split('.')[1].length : 0);
+                        }
+                    }
+                    if (subKey) { pendingSettings[objKey][subKey] = value; } else { pendingSettings[objKey] = value; }
+                    if (isPending) {
+                        applyBtn.classList.add('pending');
+                    } else {
+                        if (subKey) { settings[objKey][subKey] = value; } else { settings[objKey] = value; }
+                        updateRealtimeSetting(objKey, value, subKey);
+                    }
+                };
+                const initialValue = subKey ? pendingSettings[objKey][subKey] : pendingSettings[objKey];
+                el[prop] = initialValue;
+                if (type === 'slider') document.getElementById(`${id}-value`).textContent = parseFloat(initialValue).toFixed(el.step.includes('.') ? el.step.split('.')[1].length : 0);
+                el.addEventListener(eventType, updateFunc);
+            };
+            connect('particle-count', 'slider', 'particleCount', true);
+            connect('render-quality', 'select', 'graphics', true, 'renderQuality');
+            connect('water-quality', 'select', 'water', true, 'quality');
+            connect('antialiasing', 'checkbox', 'graphics', true, 'antialias');
+            const colorInput = document.getElementById('light-color');
+            colorInput.value = settings.lightColor;
+            colorInput.addEventListener('input', e => { pendingSettings.lightColor = e.target.value; applyBtn.classList.add('pending'); });
+            connect('point-size', 'slider', 'pointSize');
+            connect('rotation-speed-y', 'slider', 'autoRotateSpeedY');
+            connect('camera-fov', 'slider', 'camera', false, 'fov');
+            connect('fog-near', 'slider', 'fog', false, 'near');
+            connect('fog-far', 'slider', 'fog', false, 'far');
+            connect('hue-offset', 'slider', 'hueOffset');
+            connect('post-processing', 'checkbox', 'graphics', false, 'postProcessing');
+            connect('bloom-strength', 'slider', 'bloom', false, 'strength');
+            connect('bloom-radius', 'slider', 'bloom', false, 'radius');
+            connect('transition-duration', 'slider', 'transitionDuration');
+            connect('transition-explode', 'slider', 'transitionExplosion');
+            connect('transition-gravity', 'slider', 'transitionGravity');
+            connect('transition-pull', 'slider', 'transitionPull');
+            connect('water-speed', 'slider', 'water', false, 'speed');
+            connect('water-distortion', 'slider', 'water', false, 'distortion');
+            applyBtn.addEventListener('click', async () => {
+                const oldParticleCount = settings.particleCount;
+                settings = JSON.parse(JSON.stringify(pendingSettings));
+                applyBtn.classList.remove('pending');
+                if (oldParticleCount !== settings.particleCount) {
+                    hologramDataCache = {};
+                    await preCacheHolograms(shapeGenerators, 'Re-caching for new particle count...');
+                }
+                rebuildScene();
+            });
+            document.getElementById('load-set-btn').addEventListener('click', () => document.getElementById('image-upload-input').click());
+            document.getElementById('image-upload-input').addEventListener('change', handleImageUpload);
+            document.getElementById('preset-emergent').addEventListener('click', () => {
+                pendingSettings.bloom.strength = 0.10;
+                pendingSettings.bloom.radius = 0.05;
+                pendingSettings.transitionDuration = 25.5;
+                pendingSettings.transitionExplosion = 24;
+                pendingSettings.transitionGravity = 50;
+                pendingSettings.transitionPull = 15.4;
+                pendingSettings.water.speed = 0.25;
+                pendingSettings.water.distortion = 0.30;
+                pendingSettings.graphics.postProcessing = true;
+                document.getElementById('post-processing').checked = true;
+                document.getElementById('bloom-strength').value = 0.10;
+                document.getElementById('bloom-strength-value').textContent = '0.10';
+                document.getElementById('bloom-radius').value = 0.05;
+                document.getElementById('bloom-radius-value').textContent = '0.05';
+                document.getElementById('transition-duration').value = 25.5;
+                document.getElementById('transition-duration-value').textContent = '25.5';
+                document.getElementById('transition-explode').value = 24;
+                document.getElementById('transition-explode-value').textContent = '24';
+                document.getElementById('transition-gravity').value = 50;
+                document.getElementById('transition-gravity-value').textContent = '50';
+                document.getElementById('transition-pull').value = 15.4;
+                document.getElementById('transition-pull-value').textContent = '15.4';
+                document.getElementById('water-speed').value = 0.25;
+                document.getElementById('water-speed-value').textContent = '0.25';
+                document.getElementById('water-distortion').value = 0.30;
+                document.getElementById('water-distortion-value').textContent = '0.30';
+                document.getElementById('apply-settings-btn').click();
+            });
+            document.getElementById('preset-skyfall').addEventListener('click', () => {
+                pendingSettings.bloom.strength = 0.10;
+                pendingSettings.bloom.radius = 0.05;
+                pendingSettings.transitionDuration = 25.5;
+                pendingSettings.transitionExplosion = 19;
+                pendingSettings.transitionGravity = -10;
+                pendingSettings.transitionPull = 5.0;
+                pendingSettings.water.speed = 0.25;
+                pendingSettings.water.distortion = 0.30;
+                pendingSettings.graphics.postProcessing = true;
+                document.getElementById('post-processing').checked = true;
+                document.getElementById('bloom-strength').value = 0.10;
+                document.getElementById('bloom-strength-value').textContent = '0.10';
+                document.getElementById('bloom-radius').value = 0.05;
+                document.getElementById('bloom-radius-value').textContent = '0.05';
+                document.getElementById('transition-duration').value = 25.5;
+                document.getElementById('transition-duration-value').textContent = '25.5';
+                document.getElementById('transition-explode').value = 19;
+                document.getElementById('transition-explode-value').textContent = '19';
+                document.getElementById('transition-gravity').value = -10;
+                document.getElementById('transition-gravity-value').textContent = '-10';
+                document.getElementById('transition-pull').value = 5.0;
+                document.getElementById('transition-pull-value').textContent = '5.0';
+                document.getElementById('water-speed').value = 0.25;
+                document.getElementById('water-speed-value').textContent = '0.25';
+                document.getElementById('water-distortion').value = 0.30;
+                document.getElementById('water-distortion-value').textContent = '0.30';
+                document.getElementById('apply-settings-btn').click();
+            });
+            document.getElementById('preset-mindful').addEventListener('click', () => {
+                pendingSettings.bloom.strength = 0.00;
+                pendingSettings.bloom.radius = 0.00;
+                pendingSettings.transitionDuration = 12.0;
+                pendingSettings.transitionExplosion = 5;
+                pendingSettings.transitionGravity = 0;
+                pendingSettings.transitionPull = 5.0;
+                pendingSettings.water.speed = 0.10;
+                pendingSettings.water.distortion = 1.75;
+                pendingSettings.graphics.postProcessing = true;
+                document.getElementById('post-processing').checked = true;
+                document.getElementById('bloom-strength').value = 0.00;
+                document.getElementById('bloom-strength-value').textContent = '0.00';
+                document.getElementById('bloom-radius').value = 0.00;
+                document.getElementById('bloom-radius-value').textContent = '0.00';
+                document.getElementById('transition-duration').value = 12.0;
+                document.getElementById('transition-duration-value').textContent = '12.0';
+                document.getElementById('transition-explode').value = 5;
+                document.getElementById('transition-explode-value').textContent = '5';
+                document.getElementById('transition-gravity').value = 0;
+                document.getElementById('transition-gravity-value').textContent = '0';
+                document.getElementById('transition-pull').value = 5.0;
+                document.getElementById('transition-pull-value').textContent = '5.0';
+                document.getElementById('water-speed').value = 0.10;
+                document.getElementById('water-speed-value').textContent = '0.10';
+                document.getElementById('water-distortion').value = 1.75;
+                document.getElementById('water-distortion-value').textContent = '1.75';
+                document.getElementById('apply-settings-btn').click();
+            });
+            document.getElementById('current-set-info').textContent = "Current Set: Default (Sphere + 10 Shapes)";
+        }
+        function updateRealtimeSetting(key, value, subKey = null) {
+            if (key === 'pointSize') {
+                if (particles) particles.material.uniforms.pointSize.value = value;
+                if (trailParticles) trailParticles.material.uniforms.pointSize.value = value;
+            } else if (key === 'camera' && subKey === 'fov') {
+                camera.fov = value;
+                camera.updateProjectionMatrix();
+            } else if (key === 'fog') {
+                scene.fog[subKey] = value;
+            } else if (key === 'bloom') {
+                bloomPass[subKey] = value;
+            } else if (key === 'water' && water && subKey !== 'quality') {
+                water.material.uniforms[subKey === 'distortion' ? 'distortionScale' : subKey].value = value;
+            } else if (key === 'hueOffset') {
+                hueOffset = value;
+                updateColors();
+            }
+        }
+        function loadDefaultGenerators() {
+            shapeGenerators = [
+                { name: 'Sphere', isImage: false },
+                { name: 'Default 01', url: './default_01.png', isImage: true },
+                { name: 'Default 02', url: './default_02.png', isImage: true },
+                { name: 'Default 03', url: './default_03.png', isImage: true },
+                { name: 'Default 04', url: './default_04.png', isImage: true },
+                { name: 'Default 05', url: './default_05.png', isImage: true },
+                { name: 'Default 06', url: './default_06.png', isImage: true },
+                { name: 'Default 07', url: './default_07.png', isImage: true },
+                { name: 'Default 08', url: './default_08.png', isImage: true },
+                { name: 'Default 09', url: './default_09.png', isImage: true },
+                { name: 'Default 10', url: './default_10.png', isImage: true }
+            ];
+        }
+        async function handleImageUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            let newGenerators = [{ name: 'Sphere', isImage: false }];
+            for (const file of files) {
+                const url = URL.createObjectURL(file);
+                const name = file.name.split('.')[0].replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                newGenerators.push({ name, url, isImage: true });
+            }
+            hologramDataCache = {};
+            await preCacheHolograms(newGenerators, `Caching ${files.length} custom images...`);
+            shapeGenerators.forEach(gen => { if (gen.url && gen.url.startsWith('blob:') && gen.url !== './default_01.png' && gen.url !== './default_02.png' && gen.url !== './default_03.png' && gen.url !== './default_04.png' && gen.url !== './default_05.png' && gen.url !== './default_06.png' && gen.url !== './default_07.png' && gen.url !== './default_08.png' && gen.url !== './default_09.png' && gen.url !== './default_10.png') URL.revokeObjectURL(gen.url); });
+            shapeGenerators = newGenerators;
+            document.getElementById('current-set-info').textContent = `Current Set: Custom (${files.length} images)`;
+            currentGeneratorIndex = 1;
+            countdown = 1;
+            event.target.value = '';
         }
         function animate() {
             requestAnimationFrame(animate);
-            const deltaTime = clock.getDelta();
+            const dt = clock.getDelta();
             controls.update();
-            particleGroup.rotation.y += 0.003;
-            water.material.uniforms['time'].value += deltaTime / 10.0;
-
-            // Update star fade and position
-            for (let i = 0; i < STAR_COUNT; i++) {
-                const i3 = i * 3;
-                starFadeTimers[i] -= deltaTime;
-                if (starFadeStates[i] === 0) {
-                    if (starFadeTimers[i] <= 0) {
-                        starFadeStates[i] = 1;
-                        starFadeTimers[i] = FADE_DURATION;
-                    }
-                } else if (starFadeStates[i] === 1) {
-                    starOpacities[i] = Math.max(0, starOpacities[i] - deltaTime / FADE_DURATION);
-                    if (starOpacities[i] <= 0) {
-                        const theta = Math.random() * 2 * Math.PI;
-                        const phi = Math.acos(2 * Math.random() - 1);
-                        const radius = 100;
-                        starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-                        starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-                        starPositions[i3 + 2] = radius * Math.cos(phi);
-                        starFadeStates[i] = 2;
-                        starFadeTimers[i] = FADE_DURATION;
-                    }
-                } else if (starFadeStates[i] === 2) {
-                    starOpacities[i] = Math.min(1, starOpacities[i] + deltaTime / FADE_DURATION);
-                    if (starOpacities[i] >= 1) {
-                        starFadeStates[i] = 0;
-                        starFadeTimers[i] = Math.random() * (MAX_FADE_INTERVAL - MIN_FADE_INTERVAL) + MIN_FADE_INTERVAL;
-                    }
-                }
+            if (particleGroup) {
+                particleGroup.rotation.y += settings.autoRotateSpeedY;
             }
-            starGeometry.attributes.position.needsUpdate = true;
-            starGeometry.attributes.opacity.needsUpdate = true;
-
-            // --- Particle Transition Animation ---
-            const mainPositions = mainGeometry.attributes.position.array;
-            const yPositions = mainGeometry.attributes.yPosition.array;
-            if (isTransitioning) {
-                transitionProgress += deltaTime / TRANSITION_DURATION;
-                const easedProgress = easeOutCubic(Math.min(transitionProgress, 1.0));
-                const p0 = new THREE.Vector3();
-                const p1 = new THREE.Vector3();
-                const p2 = new THREE.Vector3();
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
+            if (water && settings.water.speed > 0) {
+                water.material.uniforms['time'].value += dt * settings.water.speed;
+            }
+            if (isTransitioning && mainGeometry) {
+                transitionProgress += dt / settings.transitionDuration;
+                const mainPos = mainGeometry.attributes.position.array;
+                const pullForce = new THREE.Vector3();
+                const numParticles = mainGeometry.attributes.position.count;
+                for (let i = 0; i < numParticles; i++) {
                     const i3 = i * 3;
-                    p0.set(startPositions[i3], startPositions[i3 + 1], startPositions[i3 + 2]);
-                    p1.set(controlPoints[i3], controlPoints[i3 + 1], controlPoints[i3 + 2]);
-                    p2.set(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
-                    const currentPos = getQuadraticBezierPoint(easedProgress, p0, p1, p2);
-                    mainPositions[i3] = currentPos.x;
-                    mainPositions[i3 + 1] = currentPos.y;
-                    mainPositions[i3 + 2] = currentPos.z;
-                    yPositions[i] = currentPos.y;
+                    particleVelocities[i3 + 1] -= settings.transitionGravity * dt * (1 - transitionProgress);
+                    const target = new THREE.Vector3(targetPositions[i3], targetPositions[i3 + 1], targetPositions[i3 + 2]);
+                    const current = new THREE.Vector3(mainPos[i3], mainPos[i3 + 1], mainPos[i3 + 2]);
+                    pullForce.subVectors(target, current).multiplyScalar(settings.transitionPull * transitionProgress);
+                    particleVelocities[i3] = (particleVelocities[i3] + pullForce.x * dt) * 0.98;
+                    particleVelocities[i3 + 1] = (particleVelocities[i3 + 1] + pullForce.y * dt) * 0.98;
+                    particleVelocities[i3 + 2] = (particleVelocities[i3 + 2] + pullForce.z * dt) * 0.98;
+                    mainPos[i3] += particleVelocities[i3] * dt;
+                    mainPos[i3 + 1] += particleVelocities[i3 + 1] * dt;
+                    mainPos[i3 + 2] += particleVelocities[i3 + 2] * dt;
                 }
-                mainGeometry.attributes.yPosition.needsUpdate = true;
-                trailGeometry.attributes.yPosition.needsUpdate = true;
+                mainGeometry.attributes.position.needsUpdate = true;
                 if (transitionProgress >= 1.0) {
                     isTransitioning = false;
-                    mainPositions.set(targetPositions);
+                    mainGeometry.attributes.position.array.set(targetPositions);
                 }
             }
-
-            // --- Trail Update ---
-            const trailPositions = trailGeometry.attributes.position.array;
-            const trailYPositions = trailGeometry.attributes.yPosition.array;
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const i3 = i * 3;
-                const trailPos = new THREE.Vector3(trailPositions[i3], trailPositions[i3 + 1], trailPositions[i3 + 2]);
-                const mainPos = new THREE.Vector3(mainPositions[i3], mainPositions[i3 + 1], mainPositions[i3 + 2]);
-                trailPos.lerp(mainPos, 0.2);
-                trailPositions[i3] = trailPos.x;
-                trailPositions[i3 + 1] = trailPos.y;
-                trailPositions[i3 + 2] = trailPos.z;
-                trailYPositions[i] = trailPos.y;
+            if (trailGeometry && mainGeometry) {
+                const trailPos = trailGeometry.attributes.position.array;
+                const mainPos = mainGeometry.attributes.position.array;
+                const numParticles = mainGeometry.attributes.position.count * 3;
+                for (let i = 0; i < numParticles; i++) {
+                    trailPos[i] += (mainPos[i] - trailPos[i]) * 0.2;
+                }
+                trailGeometry.attributes.position.needsUpdate = true;
             }
-            mainGeometry.attributes.position.needsUpdate = true;
-            trailGeometry.attributes.position.needsUpdate = true;
-            trailGeometry.attributes.yPosition.needsUpdate = true;
-            composer.render();
+            if (settings.graphics.postProcessing) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
         }
-
         window.addEventListener('resize', () => {
+            if (!camera || !renderer) return;
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             composer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        // Initialize target positions
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            const i3 = i * 3;
-            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
-            const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
-            targetPositions[i3] = 4 * Math.cos(theta) * Math.sin(phi) * SCALE_FACTOR;
-            targetPositions[i3 + 1] = (4 * Math.sin(theta) * Math.sin(phi) + 4) * SCALE_FACTOR;
-            targetPositions[i3 + 2] = 4 * Math.cos(phi) * SCALE_FACTOR;
-        }
-
-        updateTarget();
-        animate();</script>
+        window.addEventListener('DOMContentLoaded', () => {
+            setDefaultSettings();
+            init();
+        });
+    </script>
 </body>
 </html>
